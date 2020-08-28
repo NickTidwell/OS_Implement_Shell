@@ -4,15 +4,18 @@
 
 ### Nicholas Tidwell
 
-* Part 2: Environmental Variables
-* Part 3: Prompt
-* Part 4: Tilde Expansion
+* implemented Environmental Variables
+* implemented Prompt
+* implemented Tilde Expansion
+* implemented $PATH search
 
 ### William Tsaur
 
-* README.md
-* makefile
+* created README.md
+* created makefile
 * added NULL check on getenv() for environment variable parsing
+* modified $PATH search implementation
+* implemented External Command Execution
 
 ### Michael Styron
 
