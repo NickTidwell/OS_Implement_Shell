@@ -8,11 +8,15 @@ typedef struct {
 } tokenlist;
 
 char *get_input(void);
-tokenlist *get_tokens(char *input);
+tokenlist *get_tokens(char *input, char *delims);
 
 tokenlist *new_tokenlist(void);
 void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
+
+//
+int cmdSearch(char *cmd);
+//
 
 int main()
 {
@@ -25,7 +29,16 @@ int main()
 
 		char *input = get_input();
 		printf("whole input: %s\n", input);
-		tokenlist *tokens = get_tokens(input);
+		tokenlist *tokens = get_tokens(input, " ");
+
+//
+		char *cmd = tokens->items[0];
+		if (cmdSearch(cmd) > 0) {
+			printf("%s: command found", cmd);
+		} else {
+			printf("%s: command not found", cmd);
+		}
+//
 
 		for (int i = 0; i < tokens->size; i++) {
 			char* token = tokens->items[i];
@@ -40,9 +53,7 @@ int main()
 					envVar = "";  //token was not an existing environment variable
 				}
 				strcpy(tokens->items[i], envVar); //Assign token to enveronment variable
-			}
-
-			if (token[0] == '~') {
+			} else if (token[0] == '~') {
 				//Replaces ~ with home environment path
 				memmove(token, token + 1, strlen(token));
 				char* cpy = (char*)malloc(strlen(token));
@@ -60,6 +71,21 @@ int main()
 
 	return 0;
 }
+
+//
+int cmdSearch (char *cmd) {
+	tokenlist *pathTokens = get_tokens(getenv("PATH"), ":");
+	char *cmdToAppend = "/";
+	cmdToAppend = (char*)realloc(cmdToAppend, strlen(cmd));
+	strcat(cmdToAppend, cmd);
+	for (int i = 0; i < pathTokens->size; i++) {
+		char *token = pathTokens->items[i];
+		token = (char*)realloc(token, strlen(cmdToAppend));
+		strcat(token, cmdToAppend);
+		
+	}
+}
+//
 
 tokenlist *new_tokenlist(void)
 {
@@ -108,17 +134,17 @@ char *get_input(void)
 	return buffer;
 }
 
-tokenlist *get_tokens(char *input)
+tokenlist *get_tokens(char *input, char* delims)
 {
 	char *buf = (char *) malloc(strlen(input) + 1);
 	strcpy(buf, input);
 
 	tokenlist *tokens = new_tokenlist();
 
-	char *tok = strtok(buf, " ");
+	char *tok = strtok(buf, delims);
 	while (tok != NULL) {
 		add_token(tokens, tok);
-		tok = strtok(NULL, " ");
+		tok = strtok(NULL, delims);
 	}
 
 	free(buf);
