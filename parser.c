@@ -17,7 +17,7 @@ void free_tokens(tokenlist *tokens);
 int main()
 {
 	while (1) {
-		printf("> ");
+		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getenv("PWD")); //This is the prompt
 
 		/* input contains the whole command
 		 * tokens contains substrings from input split by spaces
@@ -25,12 +25,35 @@ int main()
 
 		char *input = get_input();
 		printf("whole input: %s\n", input);
-
 		tokenlist *tokens = get_tokens(input);
+
 		for (int i = 0; i < tokens->size; i++) {
+			char* token = tokens->items[i];
+
+			//This Check is To see if token is environment variable
+			if (token[0] == '$') {
+				memmove(tokens->items[i], tokens->items[i] + 1, strlen(tokens->items[i])); //Moves pointer forward trimming off $
+				char* envVar = getenv(token);  //Used to check if token is an existing environment variable
+				if (envVar != NULL) {
+					token = (char*)realloc(token, strlen(envVar)); //Allocate New Space for token
+				} else {
+					envVar = "";  //token was not an existing environment variable
+				}
+				strcpy(tokens->items[i], envVar); //Assign token to enveronment variable
+			}
+
+			if (token[0] == '~') {
+				//Replaces ~ with home environment path
+				memmove(token, token + 1, strlen(token));
+				char* cpy = (char*)malloc(strlen(token));
+				strcpy(cpy, token);
+				token = (char*)realloc(token, (strlen(token) + strlen(getenv("HOME")) + 2));
+				sprintf(token, "%s%s", getenv("HOME"), cpy);
+			}
+
 			printf("token %d: (%s)\n", i, tokens->items[i]);
 		}
-
+		
 		free(input);
 		free_tokens(tokens);
 	}
