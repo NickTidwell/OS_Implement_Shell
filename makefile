@@ -7,7 +7,7 @@ OBJ = parser.o
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
-
+	
 make: $(OBJ)
 	$(CC) -o shell $^ $(CFLAGS)
 
