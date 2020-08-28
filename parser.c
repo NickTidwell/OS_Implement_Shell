@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 typedef struct {
 	int size;
@@ -14,6 +16,9 @@ tokenlist *new_tokenlist(void);
 void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
 char* cmdSearch(char *cmd);
+void cmdExecute(tokenlist *tokens);
+
+static int cmdExecutions = 0;
 
 int main()
 {
@@ -31,12 +36,15 @@ int main()
 		// checks to see if command is a valid command or if command == "exit"
 		char *cmd = tokens->items[0];
 		if (strcmp(cmd, "exit") == 0) {
-			//exit code
+			//exit implementation not finished!
+			printf("Commands executed: %i\n", cmdExecutions);
+			break;
 		}
 		char* cmdPath = cmdSearch(cmd);
 		if (cmdPath == NULL) continue;
 		tokens->items[0] = cmdPath;
 
+		//command parsing - expanding varaibles
 		for (int i = 1; i < tokens->size; i++) {
 			char* token = tokens->items[i];
 
@@ -62,11 +70,25 @@ int main()
 			printf("token %d: (%s)\n", i, tokens->items[i]);
 		}
 		
+		//executing command
+		cmdExecute(tokens);
+		++cmdExecutions;
+
 		free(input);
 		free_tokens(tokens);
 	}
 
 	return 0;
+}
+
+void cmdExecute(tokenlist *tokens) {
+	pid_t child_pid = fork();
+	int status;
+	if (child_pid == 0) {
+		execv(tokens->items[0], tokens->items);
+	} else {
+		wait(&status);
+	}
 }
 
 char* cmdSearch (char *cmd) {
