@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct {
 	int size;
@@ -9,14 +10,10 @@ typedef struct {
 
 char *get_input(void);
 tokenlist *get_tokens(char *input, char *delims);
-
 tokenlist *new_tokenlist(void);
 void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
-
-//
-int cmdSearch(char *cmd);
-//
+char* cmdSearch(char *cmd);
 
 int main()
 {
@@ -31,14 +28,13 @@ int main()
 		printf("whole input: %s\n", input);
 		tokenlist *tokens = get_tokens(input, " ");
 
-//
+		// checks to see if command is a valid command or if command == "exit"
 		char *cmd = tokens->items[0];
-		if (cmdSearch(cmd) > 0) {
-			printf("%s: command found", cmd);
-		} else {
-			printf("%s: command not found", cmd);
+		if (strcmp(cmd, "exit") == 0) {
+			//exit code
 		}
-//
+		char* cmdPath = cmdSearch(cmd);
+		if (cmdPath == NULL) continue;
 
 		for (int i = 0; i < tokens->size; i++) {
 			char* token = tokens->items[i];
@@ -72,20 +68,20 @@ int main()
 	return 0;
 }
 
-//
-int cmdSearch (char *cmd) {
+char* cmdSearch (char *cmd) {
 	tokenlist *pathTokens = get_tokens(getenv("PATH"), ":");
-	char *cmdToAppend = "/";
-	cmdToAppend = (char*)realloc(cmdToAppend, strlen(cmd));
+	char *cmdToAppend = (char*)malloc(strlen(cmd) + 2);
+	cmdToAppend[0] = '/';
 	strcat(cmdToAppend, cmd);
 	for (int i = 0; i < pathTokens->size; i++) {
 		char *token = pathTokens->items[i];
 		token = (char*)realloc(token, strlen(cmdToAppend));
 		strcat(token, cmdToAppend);
-		
+		if (access(token, F_OK) == 0) return token;
 	}
+	printf("%s: command not found\n", cmd);
+	return NULL;
 }
-//
 
 tokenlist *new_tokenlist(void)
 {
