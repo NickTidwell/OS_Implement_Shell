@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <stdbool.h>
 
 typedef struct {
 	int size;
@@ -29,23 +31,32 @@ int main()
 		for (int i = 0; i < tokens->size; i++) {
 			char* token = tokens->items[i];
 
+			//This is the first arguement which is the command
+			if (i == 0) {
+				checkCommand(token);
+			}
+
+
+		
 			//This Check is To see if token is environment variable
 			if (token[0] == '$') {
-				memmove(tokens->items[i], tokens->items[i] + 1, strlen(tokens->items[i])); //Moves pointer forward trimming off $
-				token = (char*)realloc(token, strlen(getenv(token))); //Allocate New Space for token
-				strcpy(tokens->items[i], getenv(token)); //Assign token to enveronment variable
+				memmove(token, token + 1, strlen(token)); //Moves pointer forward trimming off $
+				token = (char*)realloc(token, strlen(getenv(token)) + 1); //Allocate New Space for token
+				strcpy(token, getenv(token)); //Assign token to enveronment variable
 			}
 
 			if (token[0] == '~') {
+
 				//Replaces ~ with home environment path
 				memmove(token, token + 1, strlen(token));
 				char* cpy = (char*)malloc(strlen(token));
 				strcpy(cpy, token);
 				token = (char*)realloc(token, (strlen(token) + strlen(getenv("HOME")) + 2));
 				sprintf(token, "%s%s", getenv("HOME"), cpy);
+				free(cpy);
+				
 			}
-
-			printf("token %d: (%s)\n", i, tokens->items[i]);
+			printf("token %d: (%s)\n", i, token);
 		}
 		
 		free(input);
@@ -125,4 +136,34 @@ void free_tokens(tokenlist *tokens)
 		free(tokens->items[i]);
 
 	free(tokens);
+}
+
+void checkCommand(char* token) {
+	int cmdExist = 0;
+	const char* delimeter = ":";
+	char* pathToken; //Get first path token
+	char* rest = (char*)malloc(strlen(getenv("PATH")));
+	strcpy(rest, getenv("PATH")); //Needed do not destroy the path
+	while ((pathToken = strtok_r(rest, delimeter, &rest)) && cmdExist == 0) {
+		char* res = (char*)malloc(strlen(pathToken) + strlen(token) + 2);
+		strcpy(res, pathToken);
+		strcat(res, "/");
+		strcat(res, token);
+		//printf("%s\n", res);
+		pathToken = strtok(NULL, delimeter); //get next path token
+
+		if (access(res, F_OK) != -1) {
+			// file exists
+			cmdExist = 1;
+			//printf("Exist\n");
+		}
+		else {
+			// file doesn't exist
+			//printf("Not Exist\n");
+		}
+	}
+
+	if (cmdExist == 0) {
+		printf("Command not found\n");
+	}
 }
