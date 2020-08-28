@@ -35,8 +35,9 @@ int main()
 		}
 		char* cmdPath = cmdSearch(cmd);
 		if (cmdPath == NULL) continue;
+		tokens->items[0] = cmdPath;
 
-		for (int i = 0; i < tokens->size; i++) {
+		for (int i = 1; i < tokens->size; i++) {
 			char* token = tokens->items[i];
 
 			//This Check is To see if token is environment variable
