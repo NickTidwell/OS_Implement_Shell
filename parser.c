@@ -3,6 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include<sys/wait.h> 
 
 typedef struct {
 	int size;
@@ -15,7 +18,8 @@ tokenlist *get_tokens(char *input);
 tokenlist *new_tokenlist(void);
 void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
-
+char* checkCommand(char*);
+void executeCmd(char*, char*, char*, char*);
 int main()
 {
 	while (1) {
@@ -26,16 +30,39 @@ int main()
 		 */
 
 		char *input = get_input();
+		char* cmdPath = "";
+		char* cmdArg = "";
+		char* fOutput = "";
+		char* fInput = "";
 		printf("whole input: %s\n", input);
 		tokenlist *tokens = get_tokens(input);
+
+
 		for (int i = 0; i < tokens->size; i++) {
 			char* token = tokens->items[i];
 
 			//This is the first arguement which is the command
 			if (i == 0) {
-				checkCommand(token);
+
+				cmdPath = checkCommand(token);
 			}
 
+			if (token[0] == '-') {
+
+				if (strcmp(cmdArg, "") == 0) {
+					cmdArg = (char*)malloc(strlen(token) + 1);
+					strcpy(cmdArg, token);
+				}
+				else {
+					memmove(token, token + 1, strlen(token));
+					char * res = (char*)malloc(strlen(cmdArg) + strlen(token) + 1);
+					strcpy(res, cmdArg);
+					strcat(res, token);
+
+					cmdArg = (char*)malloc(strlen(cmdArg) + strlen(token) + 1);
+					strcpy(cmdArg, res);
+				}
+			}
 
 		
 			//This Check is To see if token is environment variable
@@ -56,9 +83,20 @@ int main()
 				free(cpy);
 				
 			}
+
+			if (token[0] == '>') {
+		
+				fOutput = tokens->items[++i];
+			}
+
+			if (token[0] == '<') {
+
+				fInput = tokens->items[++i];
+			}
 			printf("token %d: (%s)\n", i, token);
 		}
 		
+		executeCmd(cmdPath, cmdArg, fOutput, fInput);
 		free(input);
 		free_tokens(tokens);
 	}
@@ -138,7 +176,7 @@ void free_tokens(tokenlist *tokens)
 	free(tokens);
 }
 
-void checkCommand(char* token) {
+char *checkCommand(char* token) {
 	int cmdExist = 0;
 	const char* delimeter = ":";
 	char* pathToken; //Get first path token
@@ -154,7 +192,7 @@ void checkCommand(char* token) {
 
 		if (access(res, F_OK) != -1) {
 			// file exists
-			cmdExist = 1;
+			return res;
 			//printf("Exist\n");
 		}
 		else {
@@ -163,7 +201,63 @@ void checkCommand(char* token) {
 		}
 	}
 
-	if (cmdExist == 0) {
-		printf("Command not found\n");
+	printf("Command not found\n");
+	return "";
+	
+	
+}
+
+void executeCmd(char* cmdPath, char* cmdArgs, char* output, char* input) {
+	if (strcmp(cmdPath, "") != 0) {
+
+		int pid = fork();
+
+		if (pid == 0) {
+			/*This is a child proccess*/
+
+			char** argv = malloc(5 * sizeof(char*)); //Create Arguement list that allows 5 entries
+			int argI = 0; //Holds index of next free memory space
+
+			//Free Space, assign value, move memory space forward
+			argv[argI] = (char*)malloc(strlen(cmdPath));
+			strcpy(argv[argI], cmdPath);
+			argI++;
+
+			if (strcmp(output, "") != 0) {
+				//Redirects Childs proccess standard output to file
+				int output_fd = open(output, O_WRONLY | O_CREAT | O_TRUNC);
+				dup2(output_fd, STDOUT_FILENO);
+				dup2(output_fd, STDERR_FILENO);
+				close(output_fd);
+			}
+
+			if (strcmp(input, "") != 0) {
+				int fd0 = open(input, O_RDONLY, 0);
+				dup2(fd0, STDIN_FILENO);
+				close(fd0);
+
+				argv[argI] = (char*)malloc(strlen(input));
+				strcpy(argv[argI], input);
+				argI++;
+			}
+
+
+			if (strcmp(cmdArgs, "") != 0) {
+				argv[argI] = (char*)malloc(strlen(cmdArgs));
+				strcpy(argv[argI], cmdArgs);
+				argI++;
+			}
+
+			argv[argI] = NULL;
+			int result = execv(argv[0], argv);
+	
+
+			exit(0);
+			
+		}
+		else {
+			pid = wait(NULL); //Wait for child process to finish
+		}
 	}
+
 }
