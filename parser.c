@@ -9,17 +9,28 @@
 
 typedef struct {
 	int size;
-	char **items;
+	char** items;
 } tokenlist;
 
-char *get_input(void);
-tokenlist *get_tokens(char *input);
+char* get_input(void);
+tokenlist* get_tokens(char* input);
 
-tokenlist *new_tokenlist(void);
-void add_token(tokenlist *tokens, char *item);
-void free_tokens(tokenlist *tokens);
+tokenlist* new_tokenlist(void);
+void add_token(tokenlist* tokens, char* item);
+void free_tokens(tokenlist* tokens);
 char* checkCommand(char*);
 void executeCmd(char*, char*, char*, char*);
+
+
+//char* builtin_str[] = {
+//  "cd",
+//  "echo"
+//};
+//int (*builtin_func[]) (char**) = {
+//  &f_cd,
+//  &f_echo,
+//  &lsh_exit
+//};
 int main()
 {
 	while (1) {
@@ -29,22 +40,35 @@ int main()
 		 * tokens contains substrings from input split by spaces
 		 */
 
-		char *input = get_input();
+		char* input = get_input();
 		char* cmdPath = "";
 		char* cmdArg = "";
 		char* fOutput = "";
 		char* fInput = "";
-		printf("whole input: %s\n", input);
-		tokenlist *tokens = get_tokens(input);
+		int builtIn = 0;
+		//printf("whole input: %s\n", input);
+		tokenlist* tokens = get_tokens(input);
 
+		char** argv = malloc(tokens->size * sizeof(char*)); //Create Arguement list size of tokens
+		int argI = 0; //Holds index of next free memory space
 
 		for (int i = 0; i < tokens->size; i++) {
 			char* token = tokens->items[i];
-
+			builtIn = 0;
 			//This is the first arguement which is the command
 			if (i == 0) {
 
-				cmdPath = checkCommand(token);
+				if (strcmp(token, "echo") == 0){
+					cmdPath = "echo";
+					builtIn = 1;
+				}
+				else {
+					cmdPath = checkCommand(token);
+					//Free Space, assign value, move memory space forward
+					argv[argI] = (char*)malloc(strlen(cmdPath));
+					strcpy(argv[argI], cmdPath);
+					argI++;
+				}
 			}
 
 			if (token[0] == '-') {
@@ -79,9 +103,7 @@ int main()
 				char* cpy = (char*)malloc(strlen(token));
 				strcpy(cpy, token);
 				token = (char*)realloc(token, (strlen(token) + strlen(getenv("HOME")) + 2));
-				sprintf(token, "%s%s", getenv("HOME"), cpy);
-				free(cpy);
-				
+				sprintf(token, "%s%s", getenv("HOME"), cpy);				
 			}
 
 			if (token[0] == '>') {
@@ -93,10 +115,13 @@ int main()
 
 				fInput = tokens->items[++i];
 			}
-			printf("token %d: (%s)\n", i, token);
+			//printf("token %d: (%s)\n", i, token);
 		}
 		
-		executeCmd(cmdPath, cmdArg, fOutput, fInput);
+
+		if (builtIn == 0) {
+			executeCmd(cmdPath, cmdArg, fOutput, fInput);
+		}
 		free(input);
 		free_tokens(tokens);
 	}
