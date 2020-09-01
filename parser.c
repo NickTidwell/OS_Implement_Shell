@@ -68,7 +68,7 @@ int main()
 				token = (char*)realloc(token, (strlen(token) + strlen(getenv("HOME")) + 2));
 				sprintf(token, "%s%s", getenv("HOME"), cpy);
 			}
-			printf("token %d: (%s)\n", i, token);
+			printf("token %d: (%s)\n", i, tokens->items[i]);
 		}
 
 		//executing command
