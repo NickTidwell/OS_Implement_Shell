@@ -36,7 +36,7 @@ int main()
 		// checks to see if command is a valid command or if command == "exit"
 		char *cmd = tokens->items[0];
 		if (strcmp(cmd, "exit") == 0) {
-			//exit implementation not finished!
+            waitpid(-1, NULL, 0);
 			printf("Commands executed: %i\n", cmdExecutions);
 			break;
 		}
@@ -73,7 +73,6 @@ int main()
 
 		//executing command
 		cmdExecute(tokens);
-		++cmdExecutions;
 		
         free(input);
 		free_tokens(tokens);
@@ -83,17 +82,22 @@ int main()
 }
 
 void cmdExecute(tokenlist *tokens) {
+printf("pid: %d\n", getpid());
 	pid_t child_pid = fork();
-    int status;
+    //int status;
     if (child_pid == -1) {
         printf("Unable to fork.");
         exit(EXIT_FAILURE);
     } else if (child_pid == 0) {
+printf("child_pid: %d\n", getpid());
 		execv(tokens->items[0], tokens->items);
         exit(0);
 	} else {
-        waitpid(child_pid, &status, 0); 
-	}
+printf("before wait pid: %d\n", getpid());
+        waitpid(child_pid, NULL, 0);
+printf("after wait pid: %d\n", getpid()); 
+	    ++cmdExecutions;
+    }
 }
 
 char* cmdSearch (char *cmd) {
@@ -101,7 +105,7 @@ char* cmdSearch (char *cmd) {
     strcpy(path, getenv("PATH"));
 	tokenlist *pathTokens = get_tokens(path, ":");
 	char *cmdToAppend = (char*)malloc(strlen(cmd) + 1);
-	cmdToAppend[0] = '/';
+	strcpy(cmdToAppend, "/");
 	strcat(cmdToAppend, cmd);
 	for (int i = 0; i < pathTokens->size; i++) {
 		char *token = pathTokens->items[i];
@@ -175,6 +179,9 @@ tokenlist *get_tokens(char *input, char* delims)
 		add_token(tokens, tok);
 		tok = strtok(NULL, delims);
 	}
+
+	tokens->items = (char**)realloc(tokens->items, (tokens->size + 1)*sizeof(char*));
+	tokens->items[tokens->size] = NULL;
 
 	free(buf);
 	return tokens;
