@@ -97,7 +97,9 @@ void cmdExecute(tokenlist *tokens) {
 }
 
 char* cmdSearch (char *cmd) {
-	tokenlist *pathTokens = get_tokens(getenv("PATH"), ":");
+    char* path = (char*)malloc(strlen(getenv("PATH")));
+    strcpy(path, getenv("PATH"));
+	tokenlist *pathTokens = get_tokens(path, ":");
 	char *cmdToAppend = (char*)malloc(strlen(cmd) + 1);
 	cmdToAppend[0] = '/';
 	strcat(cmdToAppend, cmd);
@@ -110,6 +112,7 @@ char* cmdSearch (char *cmd) {
 	printf("%s: command not found\n", cmd);
     free_tokens(pathTokens);
     free(cmdToAppend);
+    free(path);
 	return NULL;
 }
 
