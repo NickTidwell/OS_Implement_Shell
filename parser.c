@@ -43,6 +43,7 @@ int main()
 		char* cmdPath = cmdSearch(cmd);
 		if (cmdPath == NULL) continue;
 		tokens->items[0] = cmdPath;
+        printf("token 0: (%s)\n", tokens->items[0]);
 
 		//command parsing - expanding varaibles
 		for (int i = 1; i < tokens->size; i++) {
@@ -50,31 +51,31 @@ int main()
 
 			//This Check is To see if token is environment variable
 			if (token[0] == '$') {
-				memmove(tokens->items[i], tokens->items[i] + 1, strlen(tokens->items[i])); //Moves pointer forward trimming off $
+				memmove(token, token + 1, strlen(token)); //Moves pointer forward trimming off $
 				char* envVar = getenv(token);  //Used to check if token is an existing environment variable
 				if (envVar != NULL) {
-					token = (char*)realloc(token, strlen(envVar)); //Allocate New Space for token
+					tokens->items[i] = (char*)realloc(tokens->items[i], strlen(envVar) + 1); //Allocate New Space for token
 				} else {
-					envVar = "";  //token was not an existing environment variable
+                    tokens->items[i] = (char*)realloc(tokens->items[i], 1);
+					envVar = "\0";  //token was not an existing environment variable
 				}
 				strcpy(tokens->items[i], envVar); //Assign token to enveronment variable
 			} else if (token[0] == '~') {
 				//Replaces ~ with home environment path
 				memmove(token, token + 1, strlen(token));
-				char* cpy = (char*)malloc(strlen(token));
+				char* cpy = (char*)malloc(strlen(token) + 1);
 				strcpy(cpy, token);
 				token = (char*)realloc(token, (strlen(token) + strlen(getenv("HOME")) + 2));
 				sprintf(token, "%s%s", getenv("HOME"), cpy);
 			}
-
-			printf("token %d: (%s)\n", i, tokens->items[i]);
+			printf("token %d: (%s)\n", i, token);
 		}
-		
+
 		//executing command
 		cmdExecute(tokens);
 		++cmdExecutions;
-
-		free(input);
+		
+        free(input);
 		free_tokens(tokens);
 	}
 
@@ -83,26 +84,32 @@ int main()
 
 void cmdExecute(tokenlist *tokens) {
 	pid_t child_pid = fork();
-	int status;
-	if (child_pid == 0) {
+    int status;
+    if (child_pid == -1) {
+        printf("Unable to fork.");
+        exit(EXIT_FAILURE);
+    } else if (child_pid == 0) {
 		execv(tokens->items[0], tokens->items);
+        exit(0);
 	} else {
-		wait(&status);
+        waitpid(child_pid, &status, 0); 
 	}
 }
 
 char* cmdSearch (char *cmd) {
 	tokenlist *pathTokens = get_tokens(getenv("PATH"), ":");
-	char *cmdToAppend = (char*)malloc(strlen(cmd) + 2);
+	char *cmdToAppend = (char*)malloc(strlen(cmd) + 1);
 	cmdToAppend[0] = '/';
 	strcat(cmdToAppend, cmd);
 	for (int i = 0; i < pathTokens->size; i++) {
 		char *token = pathTokens->items[i];
-		token = (char*)realloc(token, strlen(cmdToAppend));
+		token = (char*)realloc(token, strlen(cmdToAppend) + strlen(token) + 1);
 		strcat(token, cmdToAppend);
 		if (access(token, F_OK) == 0) return token;
 	}
 	printf("%s: command not found\n", cmd);
+    free_tokens(pathTokens);
+    free(cmdToAppend);
 	return NULL;
 }
 
@@ -116,13 +123,13 @@ tokenlist *new_tokenlist(void)
 
 void add_token(tokenlist *tokens, char *item)
 {
-	int i = tokens->size;
-
-	tokens->items = (char **) realloc(tokens->items, (i + 1) * sizeof(char *));
-	tokens->items[i] = (char *) malloc(strlen(item) + 1);
-	strcpy(tokens->items[i], item);
-
-	tokens->size += 1;
+    if (tokens != NULL) {
+        int i = tokens->size;
+	    tokens->items = (char **) realloc(tokens->items, (i + 1) * sizeof(char *));
+	    tokens->items[i] = (char *) malloc(strlen(item) + 1);
+        strcpy(tokens->items[i], item);
+	    tokens->size += 1;
+    }
 }
 
 char *get_input(void)
