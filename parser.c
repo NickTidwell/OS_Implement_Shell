@@ -16,7 +16,7 @@ tokenlist *new_tokenlist(void);
 void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
 char* cmdSearch(char *cmd);
-void cmdExecute(tokenlist *tokens);
+void executeCmd(tokenlist *tokens);
 
 static int cmdExecutions = 0;
 
@@ -80,7 +80,7 @@ printf("Executed cmdSearch\n");
 		}
 
 		//executing command
-		cmdExecute(tokens);
+		executeCmd(tokens);
 		++cmdExecutions;
 
 		free(input);
@@ -90,7 +90,7 @@ printf("Executed cmdSearch\n");
 	return 0;
 }
 
-void cmdExecute(tokenlist *tokens) {
+void executeCmd(tokenlist *tokens) {
 	pid_t child_pid = fork();
 	int status;
 	if (child_pid == 0) {

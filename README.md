@@ -8,6 +8,8 @@
 * implemented Prompt
 * implemented Tilde Expansion
 * implemented $PATH search
+* implemented External Command Execution
+* implemented i/o redirection
 
 ### William Tsaur
 
