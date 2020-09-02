@@ -20,7 +20,9 @@ void add_token(tokenlist* tokens, char* item);
 void free_tokens(tokenlist* tokens);
 char* checkCommand(char*);
 void executeCmd(char*, char*, char**, int);
-
+int f_cd(char**);
+int f_echo(char**);
+int f_exit(char**);
 
 char* builtin_str[] = {
   "cd",
@@ -28,22 +30,33 @@ char* builtin_str[] = {
   "exit"
 };
 int (*builtin_func[]) (char**) = {
-	//&f_cd,
-	//&f_echo,
-	//&f_exit
+	&f_cd,
+	&f_echo,
+	&f_exit
 };
 int builin_size = 3;
 
 int f_echo(char** argv) {
-	printf("This should echo the command");
+
+	*++argv; //Skip pass the command name
+	for (char* c = *argv; c; c = *argv) {
+		printf("%s", c);
+		if (*++argv) printf(" ");
+	}
+
+	printf("\n");
+	return 1;
 }
 
 int f_cd(char** argv) {
 
+
+	printf("This is a place holder but should change directory\n");
+	return 1;
 }
 
 int f_exit(char** argv) {
-
+	return 0;
 }
 
 
@@ -63,15 +76,15 @@ int main()
 		char* fOutput = "";
 		char* fInput = "";
 		int builtIn = 0;
+		int error = 0;
 		//printf("whole input: %s\n", input);
 		tokenlist* tokens = get_tokens(input);
 
 		char** argv = malloc(tokens->size * sizeof(char*)); //Create Arguement list size of tokens
 		int argI = 0; //Holds index of next free memory space
-
 		for (int i = 0; i < tokens->size; i++) {
 			char* token = tokens->items[i];
-			builtIn = 0;
+
 			//This is the first arguement which is the command
 			if (i == 0) {
 
@@ -79,19 +92,24 @@ int main()
 					cmdPath = "echo";
 					builtIn = 1;
 				}
+				else if (strcmp(token, "exit") == 0) {
+					cmdPath = "exit";
+					builtIn = 1;
+				}
 				else {
 					cmdPath = checkCommand(token);
 					if (cmdPath == NULL) {
 						break;
 					}
-					//Free Space, assign value, move memory space forward
-					argv[argI] = (char*)malloc(strlen(cmdPath));
-					strcpy(argv[argI], cmdPath);
-					argI++;
+
 				}
+				//Free Space, assign value, move memory space forward
+				argv[argI] = (char*)malloc(strlen(cmdPath));
+				strcpy(argv[argI], cmdPath);
+				argI++;
 			}
 
-			if (token[0] == '-') {
+			else if (token[0] == '-') {
 				//Free Space, assign value, move memory space forward
 				argv[argI] = (char*)malloc(strlen(token));
 				strcpy(argv[argI], token);
@@ -100,19 +118,27 @@ int main()
 
 
 			//This Check is To see if token is environment variable
-			if (token[0] == '$') {
+			else if (token[0] == '$') {
+
 				memmove(token, token + 1, strlen(token)); //Moves pointer forward trimming off $
-				const char* cpy = (char*)malloc(strlen(token) + 1);
+				char* cpy = (char*)malloc(strlen(token) + 1);
 				strcpy(cpy, token);
+
+				if (getenv(cpy) == NULL) {
+					printf("$%s is unknown\n", cpy);
+					error = 1;
+					break;
+				}
 				token = (char*)malloc(strlen(getenv(cpy)) + 1); //Allocate New Space for token
 				strcpy(token, getenv(cpy)); //Assign token to enveronment variable
 
 				argv[argI] = (char*)malloc(strlen(token));
 				strcpy(argv[argI], token);
 				argI++;
+				free(cpy);
 			}
 
-			if (token[0] == '~') {
+			else if (token[0] == '~') {
 				//Replaces ~ with home environment path
 				memmove(token, token + 1, strlen(token));
 				char* cpy = (char*)malloc(strlen(token));
@@ -123,27 +149,36 @@ int main()
 				argv[argI] = (char*)malloc(strlen(token));
 				strcpy(argv[argI], token);
 				argI++;
+
+				free(cpy);
 			}
 
-			if (token[0] == '>') {
+			else if (token[0] == '>') {
 
 				fOutput = tokens->items[++i];
 			}
 
-			if (token[0] == '<') {
+			else if (token[0] == '<') {
 
 				fInput = tokens->items[++i];
 			}
+			else {
+				argv[argI] = (char*)malloc(strlen(token));
+				strcpy(argv[argI], token);
+				argI++;
+			}
 		}
 
-
-		if (builtIn == 0) {
+		argv[argI] = NULL;
+		if (builtIn == 0 && error == 0) {
 			executeCmd(fOutput, fInput, argv, argI);
 		}
-		else {
+		else if (error == 0) {
 			for (int i = 0; i < builin_size; i++) {
 				if (strcmp(argv[0], builtin_str[i]) == 0) {
-					return (*builtin_func[i])(argv);
+					int res = (*builtin_func[i])(argv);
+					if (res == 0)
+						return 0;
 				}
 			}
 		}
@@ -278,7 +313,7 @@ void executeCmd(char* output, char* input, char** argv, int argI) {
 
 		}
 
-		argv[argI] = NULL;
+
 		int result = execv(argv[0], argv);
 
 
@@ -286,7 +321,7 @@ void executeCmd(char* output, char* input, char** argv, int argI) {
 
 	}
 	else {
-		pid = wait(NULL); //Wait for child process to finish
+		waitpid(pid, NULL, 0); //Wait for child process to finish
 	}
 
 
