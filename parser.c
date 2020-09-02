@@ -50,8 +50,18 @@ int f_echo(char** argv) {
 
 int f_cd(char** argv) {
 
+	const char* path = *++argv;
+	if (*++argv != NULL)
+		printf("Too many arguments\n");
 
-	printf("This is a place holder but should change directory\n");
+	if (path != NULL) {
+		int res = chdir(path);
+
+		if (res == -1)
+			printf("%s: No such file or directory.", path);
+	}
+	else chdir(getenv("HOME"));
+	free(path);
 	return 1;
 }
 
@@ -65,7 +75,10 @@ int main()
 
 
 	while (1) {
-		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getenv("PWD")); //This is the prompt
+
+		char buff[1000];
+
+		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getcwd(buff, 1000)); //This is the prompt
 
 		/* input contains the whole command
 		 * tokens contains substrings from input split by spaces
@@ -94,6 +107,10 @@ int main()
 				}
 				else if (strcmp(token, "exit") == 0) {
 					cmdPath = "exit";
+					builtIn = 1;
+				}
+				else if (strcmp(token, "cd") == 0) {
+					cmdPath = "cd";
 					builtIn = 1;
 				}
 				else {
