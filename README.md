@@ -18,6 +18,7 @@
 * added NULL check on getenv() for environment variable parsing
 * modified $PATH search implementation
 * implemented External Command Execution
+* implemented 'exit'
 
 ### Michael Styron
 
