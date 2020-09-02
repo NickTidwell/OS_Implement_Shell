@@ -286,6 +286,12 @@ char* checkCommand(char* token) {
 		}
 	}
 
+	if (access(token, F_OK) != -1) {
+		// file exists
+		return token;
+		//printf("Exist\n");
+	}
+
 	printf("Command not found\n");
 	return NULL;
 
