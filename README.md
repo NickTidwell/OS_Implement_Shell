@@ -10,6 +10,7 @@
 * implemented $PATH search
 * implemented External Command Execution
 * implemented i/o redirection
+* implemented piping
 
 ### William Tsaur
 

@@ -24,8 +24,8 @@ void cmdExecute(tokenlist *tokens);
 int isBuiltIn(char* cmd);
 void echo(tokenlist *tokens);
 void cd(tokenlist *tokens);
-void exit();
-void jobs();
+void jobs(void);
+void exitPrgm(void);
 
 //static int NUM_OF_BUILT_INS = 3;
 //static char** BUILT_INS = {"echo", "cd", "jobs"}; //list of built-in functions besides "exit"
@@ -54,9 +54,7 @@ int main()
 		// checks to see if command is a valid command or if command == "exit"
 		char *cmd = tokens->items[0];
 		if (strcmp(cmd, "exit") == 0) {		//built-in function: waits for all processes to finish then terminates program
-            waitpid(-1, NULL, 0);
-			printf("Commands executed: %i\n", cmdExecutions);
-			exit(EXIT_SUCCESS);
+            exitPrgm();
 		}
 		char* cmdPath = cmdSearch(cmd);
 		if (cmdPath == NULL) continue;
@@ -269,6 +267,12 @@ void cd(tokenlist *tokens) {
 	}
 }
 
-void jobs() {
+void jobs(void) {
 
+}
+
+void exitPrgm(void) {
+	waitpid(-1, NULL, 0);
+	printf("Commands executed: %i\n", cmdExecutions);
+	exit(EXIT_SUCCESS);
 }
