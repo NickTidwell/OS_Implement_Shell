@@ -19,7 +19,7 @@ tokenlist* new_tokenlist(void);
 void add_token(tokenlist* tokens, char* item);
 void free_tokens(tokenlist* tokens);
 char* checkCommand(char*);
-void executeCmd(char*, char*, char**, int);
+int executeCmd(char*, char*, char**, char**, char**, int, int[]);
 int f_cd(char**);
 int f_echo(char**);
 int f_exit(char**);
@@ -50,7 +50,7 @@ int f_echo(char** argv) {
 
 int f_cd(char** argv) {
 
-	const char* path = *++argv;
+	char* path = *++argv;
 	if (*++argv != NULL)
 		printf("Too many arguments\n");
 
@@ -88,52 +88,91 @@ int main()
 		char* cmdPath = "";
 		char* fOutput = "";
 		char* fInput = "";
-		int builtIn = 0;
+		int builtIn[3];
 		int error = 0;
-		//printf("whole input: %s\n", input);
+		int pipe = 0;
 		tokenlist* tokens = get_tokens(input);
 
-		char** argv = malloc(tokens->size * sizeof(char*)); //Create Arguement list size of tokens
+		int argNum = 0;
+		char** argv1 = malloc(tokens->size * sizeof(char*)); //Create Arguement list size of tokens
+		char** argv2 = malloc(tokens->size * sizeof(char*)); //Create Arguement list size of tokens
+		char** argv3 = malloc(tokens->size * sizeof(char*)); //Create Arguement list size of tokens
 		int argI = 0; //Holds index of next free memory space
+		int isCMD = 1;
 		for (int i = 0; i < tokens->size; i++) {
 			char* token = tokens->items[i];
-
 			//This is the first arguement which is the command
-			if (i == 0) {
-
+			if (isCMD == 1) {
+				isCMD = 0;
 				if (strcmp(token, "echo") == 0) {
 					cmdPath = "echo";
-					builtIn = 1;
+					builtIn[argNum] = 1;
 				}
 				else if (strcmp(token, "exit") == 0) {
 					cmdPath = "exit";
-					builtIn = 1;
+					builtIn[argNum] = 1;
 				}
 				else if (strcmp(token, "cd") == 0) {
 					cmdPath = "cd";
-					builtIn = 1;
+					builtIn[argNum] = 1;
 				}
 				else {
+					builtIn[argNum] = 0;
 					cmdPath = checkCommand(token);
 					if (cmdPath == NULL) {
 						break;
 					}
 
 				}
-				//Free Space, assign value, move memory space forward
-				argv[argI] = (char*)malloc(strlen(cmdPath));
-				strcpy(argv[argI], cmdPath);
-				argI++;
-			}
 
+				switch (argNum)
+				{
+				case 0:
+					//Free Space, assign value, move memory space forward
+					argv1[argI] = (char*)malloc(strlen(cmdPath));
+					strcpy(argv1[argI], cmdPath);
+					argI++;
+					break;
+				case 1:
+					argv2[argI] = (char*)malloc(strlen(cmdPath));
+					strcpy(argv2[argI], cmdPath);
+					argI++;
+					break;
+				case 2:
+					argv3[argI] = (char*)malloc(strlen(cmdPath));
+					strcpy(argv3[argI], cmdPath);
+					argI++;
+					break;
+				default:
+					break;
+				}
+
+
+
+			}
 			else if (token[0] == '-') {
-				//Free Space, assign value, move memory space forward
-				argv[argI] = (char*)malloc(strlen(token));
-				strcpy(argv[argI], token);
-				argI++;
+				switch (argNum)
+				{
+				case 0:
+					//Free Space, assign value, move memory space forward
+					argv1[argI] = (char*)malloc(strlen(token));
+					strcpy(argv1[argI], token);
+					argI++;
+					break;
+				case 1:
+					argv2[argI] = (char*)malloc(strlen(token));
+					strcpy(argv2[argI], token);
+					argI++;
+					break;
+				case 2:
+					argv3[argI] = (char*)malloc(strlen(token));
+					strcpy(argv3[argI], token);
+					argI++;
+					break;
+				default:
+					break;
+				}
 			}
-
-
 			//This Check is To see if token is environment variable
 			else if (token[0] == '$') {
 
@@ -149,12 +188,30 @@ int main()
 				token = (char*)malloc(strlen(getenv(cpy)) + 1); //Allocate New Space for token
 				strcpy(token, getenv(cpy)); //Assign token to enveronment variable
 
-				argv[argI] = (char*)malloc(strlen(token));
-				strcpy(argv[argI], token);
-				argI++;
+				switch (argNum)
+				{
+				case 0:
+					//Free Space, assign value, move memory space forward
+					argv1[argI] = (char*)malloc(strlen(token));
+					strcpy(argv1[argI], token);
+					argI++;
+					break;
+				case 1:
+					argv2[argI] = (char*)malloc(strlen(token));
+					strcpy(argv2[argI], token);
+					argI++;
+					break;
+				case 2:
+					argv3[argI] = (char*)malloc(strlen(token));
+					strcpy(argv3[argI], token);
+					argI++;
+					break;
+				default:
+					break;
+				}
+
 				free(cpy);
 			}
-
 			else if (token[0] == '~') {
 				//Replaces ~ with home environment path
 				memmove(token, token + 1, strlen(token));
@@ -163,42 +220,100 @@ int main()
 				token = (char*)realloc(token, (strlen(token) + strlen(getenv("HOME")) + 2));
 				sprintf(token, "%s%s", getenv("HOME"), cpy);
 
-				argv[argI] = (char*)malloc(strlen(token));
-				strcpy(argv[argI], token);
-				argI++;
+				switch (argNum)
+				{
+				case 0:
+					//Free Space, assign value, move memory space forward
+					argv1[argI] = (char*)malloc(strlen(token));
+					strcpy(argv1[argI], token);
+					argI++;
+					break;
+				case 1:
+					argv2[argI] = (char*)malloc(strlen(token));
+					strcpy(argv2[argI], token);
+					argI++;
+					break;
+				case 2:
+					argv3[argI] = (char*)malloc(strlen(token));
+					strcpy(argv3[argI], token);
+					argI++;
+					break;
+				default:
+					break;
+				}
 
 				free(cpy);
 			}
-
 			else if (token[0] == '>') {
 
 				fOutput = tokens->items[++i];
 			}
-
 			else if (token[0] == '<') {
 
 				fInput = tokens->items[++i];
 			}
-			else {
-				argv[argI] = (char*)malloc(strlen(token));
-				strcpy(argv[argI], token);
-				argI++;
+			else if (token[0] == '|') {
+				//Run past command save output for next input
+				switch (argNum)
+				{
+				case 0:
+					argv1[argI] = NULL;
+				case 1:
+					argv2[argI] = NULL;
+				case 2:
+					argv3[argI] = NULL;
+				default:
+					break;
+				}
+				argI = 0;
+				argNum++;
+				isCMD = 1;
 			}
-		}
-
-		argv[argI] = NULL;
-		if (builtIn == 0 && error == 0) {
-			executeCmd(fOutput, fInput, argv, argI);
-		}
-		else if (error == 0) {
-			for (int i = 0; i < builin_size; i++) {
-				if (strcmp(argv[0], builtin_str[i]) == 0) {
-					int res = (*builtin_func[i])(argv);
-					if (res == 0)
-						return 0;
+			else {
+				switch (argNum)
+				{
+				case 0:
+					//Free Space, assign value, move memory space forward
+					argv1[argI] = (char*)malloc(strlen(token));
+					strcpy(argv1[argI], token);
+					argI++;
+					break;
+				case 1:
+					argv2[argI] = (char*)malloc(strlen(token));
+					strcpy(argv2[argI], token);
+					argI++;
+					break;
+				case 2:
+					argv3[argI] = (char*)malloc(strlen(token));
+					strcpy(argv3[argI], token);
+					argI++;
+					break;
+				default:
+					break;
 				}
 			}
 		}
+
+
+		switch (argNum)
+		{
+		case 0:
+			argv1[argI] = NULL;
+			argv2[0] = NULL;
+			argv3[0] = NULL;
+		case 1:
+			argv2[argI] = NULL;
+			argv3[0] = NULL;
+		case 2:
+			argv3[argI] = NULL;
+		default:
+			break;
+		}
+		if (error == 0) {
+			int res = executeCmd(fOutput, fInput, argv1, argv2, argv3, argNum, builtIn);
+			if (res == 0) return 0;
+		}
+
 		free(input);
 		free_tokens(tokens);
 	}
@@ -315,11 +430,20 @@ char* checkCommand(char* token) {
 
 }
 
-void executeCmd(char* output, char* input, char** argv, int argI) {
-	int pid = fork();
+int executeCmd(char* output, char* input, char** argv1, char** argv2, char** argv3, int argSize, int builtIn[]) {
 
-	if (pid == 0) {
-		/*This is a child proccess*/
+	int status;
+	int i;
+
+
+	// make 2 pipes (argv1 to argv2 and argv2 to argv3); each has 2 fds
+	int pipes[4];
+	pipe(pipes); //1st pipe
+	pipe(pipes + 2); //2nd pipe
+
+	// fork the first child (to execute argv1)
+	if (fork() == 0)
+	{
 
 		if (strcmp(output, "") != 0) {
 			//Redirects Childs proccess standard output to file
@@ -336,16 +460,105 @@ void executeCmd(char* output, char* input, char** argv, int argI) {
 
 		}
 
+		// direct argv2 stdout to 1st pipe
+		if (argv2[0] != NULL) dup2(pipes[1], 1);
 
-		int result = execv(argv[0], argv);
+		// close all pipes
+		close(pipes[0]);
+		close(pipes[1]);
+		close(pipes[2]);
+		close(pipes[3]);
 
-
+		if (builtIn[0] == 1) {
+			for (int i = 0; i < builin_size; i++) {
+				if (strcmp(argv1[0], builtin_str[i]) == 0) {
+					int res = (*builtin_func[i])(argv1);
+					if (res == 0)
+						return 0;
+				}
+			}
+		}
+		else {
+			execv(argv1[0], argv1);
+		}
 		exit(0);
-
 	}
-	else {
-		waitpid(pid, NULL, 0); //Wait for child process to finish
+	else if (argSize > 0)
+	{
+		// fork second child (to execute argv2)
+		if (fork() == 0)
+		{
+			//direct argv2 read to 1st pipe
+
+			if (argv2[0] != NULL) dup2(pipes[0], 0);
+
+			// replace argv2 stdout to 2nd pipe
+			if (argv3[0] != NULL) dup2(pipes[3], 1);
+
+			// close all pipes
+			close(pipes[0]);
+			close(pipes[1]);
+			close(pipes[2]);
+			close(pipes[3]);
+
+			if (builtIn[1] == 1) {
+				for (int i = 0; i < builin_size; i++) {
+					if (strcmp(argv2[0], builtin_str[i]) == 0) {
+						int res = (*builtin_func[i])(argv2);
+						if (res == 0)
+							return 0;
+					}
+				}
+			}
+			else {
+				execv(argv2[0], argv2);
+			}
+			exit(0);
+		}
+		else if (argSize > 1)
+		{
+			// fork third child 
+
+			if (fork() == 0)
+			{
+				// replace arv3 stdin with input of 2nd Pipe
+				if (argv3[0] != NULL) dup2(pipes[2], 0);
+
+				// close all pipes
+				close(pipes[0]);
+				close(pipes[1]);
+				close(pipes[2]);
+				close(pipes[3]);
+
+				if (builtIn[2] == 1) {
+					for (int i = 0; i < builin_size; i++) {
+						if (strcmp(argv3[0], builtin_str[i]) == 0) {
+							int res = (*builtin_func[i])(argv3);
+							if (res == 0)
+								return 0;
+						}
+					}
+				}
+				else {
+					execv(argv3[0], argv3);
+				}
+
+				exit(0);
+			}
+		}
 	}
 
 
+	close(pipes[0]);
+	close(pipes[1]);
+	close(pipes[2]);
+	close(pipes[3]);
+
+	// Wait for all pipe ends
+	for (i = 0; i < argSize + 1; i++) {
+		wait(&status);
+	}
+
+
+	return 1;
 }
