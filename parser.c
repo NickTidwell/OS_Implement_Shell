@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 typedef struct {
 	int size;
@@ -23,12 +24,11 @@ void cmdExecute(tokenlist *tokens);
 int isBuiltIn(char* cmd);
 void echo(tokenlist *tokens);
 void cd(tokenlist *tokens);
-void exit(tokenlist *tokens);
-void jobs(tokenlist *tokens);
+void exit();
+void jobs();
 
-static char** BUILT_INS = {"echo", "cd", "exit", "jobs"};
-static void (*FUNC_LIST) (tokenlist *tokens) = {echo, cd, exit, jobs};
-static int NUM_OF_BUILT_INS = 4;
+//static int NUM_OF_BUILT_INS = 3;
+//static char** BUILT_INS = {"echo", "cd", "jobs"}; //list of built-in functions besides "exit"
 
 static int cmdExecutions = 0;
 
@@ -53,10 +53,10 @@ int main()
 
 		// checks to see if command is a valid command or if command == "exit"
 		char *cmd = tokens->items[0];
-		if (strcmp(cmd, "exit") == 0) {
+		if (strcmp(cmd, "exit") == 0) {		//built-in function: waits for all processes to finish then terminates program
             waitpid(-1, NULL, 0);
 			printf("Commands executed: %i\n", cmdExecutions);
-			break;
+			exit(EXIT_SUCCESS);
 		}
 		char* cmdPath = cmdSearch(cmd);
 		if (cmdPath == NULL) continue;
@@ -199,6 +199,17 @@ char* cmdSearch (char *cmd) {
 }
 
 void cmdExecute(tokenlist *tokens) {
+	int oldIn = dup(0);
+	int oldOut = dup(1);
+	int fdIn, fdOut;
+	if (F_IN != NULL) {
+		if (access(F_IN, F_OK) == 0) {
+			fdIn = open(F_IN, O_RDONLY);
+		}
+	} else {
+		fdIn = dup(oldIn);
+	}
+
 	pid_t child_pid = fork();
     //int status;
     if (child_pid == -1) {
@@ -213,12 +224,25 @@ void cmdExecute(tokenlist *tokens) {
     }
 }
 
-int isBuiltIn(char* cmd) {
-
-}
+// int isBuiltIn(char* cmd) {
+// 	if (cmd != NULL) {
+// 		for (int i = 0; i < NUM_OF_BUILT_INS; i++) {
+// 			if (strcmp(cmd, BUILT_INS[i]) == 0) {
+// 				return i;
+// 			}
+// 		}
+// 	}
+// 	return -1;
+// }
 
 void echo(tokenlist *tokens) {
-
+	if (tokens->size > 1) {
+		printf("%s", tokens->items[1]);
+		for (int i = 2; i < tokens->size; i++) {
+			printf(" %s", tokens->items[i]);
+		}
+		printf("\n");
+	}
 }
 
 void cd(tokenlist *tokens) {
@@ -245,10 +269,6 @@ void cd(tokenlist *tokens) {
 	}
 }
 
-void exit(tokenlist *tokens) {
-
-}
-
-void jobs(tokenlist *tokens) {
+void jobs() {
 
 }
