@@ -12,5 +12,5 @@ make: $(OBJ)
 	$(CC) -o shell $^ $(CFLAGS)
 
 clean:
-	rm *.o;
-	rm shell;
+	rm *.o
+	rm shell

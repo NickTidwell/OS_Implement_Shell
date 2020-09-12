@@ -30,7 +30,9 @@ void exitPrgm(void);
 //static int NUM_OF_BUILT_INS = 3;
 //static char** BUILT_INS = {"echo", "cd", "jobs"}; //list of built-in functions besides "exit"
 
-static int cmdExecutions = 0;
+static int CMDS_EXECUTED = 0;
+
+static void (*fp) (tokenlist*);
 
 static char* F_OUT;	//variables to store name of files for i/o redirection
 static char* F_IN;
@@ -51,16 +53,24 @@ int main()
 //printf("whole input: %s\n", input);
 		tokenlist *tokens = get_tokens(input, " ");
 
-		// checks to see if command is a valid command or if command == "exit"
+		// checks to see if cmd is a built-in cmd
 		char *cmd = tokens->items[0];
-		if (strcmp(cmd, "exit") == 0) {		//built-in function: waits for all processes to finish then terminates program
+		if (strcmp(cmd, "exit") == 0)
             exitPrgm();
+		else if (strcmp(cmd, "jobs") == 0) {
+			jobs();
+			continue;
+		} else if (strcmp(cmd, "cd") == 0)
+			fp = cd;
+		else if (strcmp(cmd, "echo") == 0)
+			fp = echo;
+		else {
+			fp = cmdExecute;
+			//checks if cmd is a valid cmd
+			char* cmdPath = cmdSearch(cmd);
+			if (cmdPath == NULL) continue;
+			tokens->items[0] = cmdPath;
 		}
-		char* cmdPath = cmdSearch(cmd);
-		if (cmdPath == NULL) continue;
-		tokens->items[0] = cmdPath;
-//printf("token 0: (%s)\n", tokens->items[0]);
-		
 		//command parsing - expanding varaibles
 		for (int i = 1; i < tokens->size; i++) {
 			char* token = tokens->items[i];
@@ -79,21 +89,26 @@ int main()
 			} else if (token[0] == '~') {
 				//Replaces ~ with home environment path
 				memmove(token, token + 1, strlen(token));
-				char* cpy = (char*)malloc(strlen(token) + 1);
+				char* cpy = calloc(strlen(token) + 1, sizeof(char));
 				strcpy(cpy, token);
 				token = (char*)realloc(token, (strlen(token) + strlen(getenv("HOME")) + 2));
 				sprintf(token, "%s%s", getenv("HOME"), cpy);
 			} else if (token[0] == '<') {
-				if (++i < tokens->size)
-					F_IN = tokens->items[i];
+				tokens->items[i] = 0;
+				if (++i < tokens->size) {
+					F_IN = calloc(strlen(tokens->items[i]) + 1, sizeof(char));
+					strcpy(F_IN, tokens->items[i]);
+				}
 			} else if (token [0] == '>') {
-				if (++i < tokens->size)
-					F_OUT = tokens->items[i];
+				tokens->items[i] = 0;
+				if (++i < tokens->size) {
+					F_OUT = calloc(strlen(tokens->items[i]) + 1, sizeof(char));
+					strcpy(F_OUT, tokens->items[i]);
+				}
 			}
-//printf("token %d: (%s)\n", i, tokens->items[i]);
 		}
 		//executing command
-		cmdExecute(tokens);
+		fp(tokens);
 
         free(input);
 		free_tokens(tokens);
@@ -197,41 +212,50 @@ char* cmdSearch (char *cmd) {
 }
 
 void cmdExecute(tokenlist *tokens) {
-	int oldIn = dup(0);
-	int oldOut = dup(1);
-	int fdIn, fdOut;
+	int fdIn = -1, fdOut = -1;
+	
 	if (F_IN != NULL) {
-		if (access(F_IN, F_OK) == 0) {
-			fdIn = open(F_IN, O_RDONLY);
+		fdIn = open(F_IN, O_RDONLY);
+		if (fdIn == -1) {
+			printf("%s: No such file or directory\n", F_IN);
+			return;
 		}
-	} else {
-		fdIn = dup(oldIn);
+	}
+
+	if (F_OUT != NULL) {
+		fdOut = open(F_OUT, O_RDWR | O_CREAT, 0644);
+		if (fdOut == -1) {
+			printf("%s: Error opening file\n", F_OUT);
+			return;
+		}
 	}
 
 	pid_t child_pid = fork();
-    //int status;
     if (child_pid == -1) {
-        printf("Unable to fork.");
+        printf("Unable to fork.\n");
         exit(EXIT_FAILURE);
     } else if (child_pid == 0) {
+		//child process
+		if (fdIn != -1) {
+			close(stdin);
+			dup2(fdIn, STDIN_FILENO);
+		}
+		if (fdOut != -1) {
+			close(stdout);
+			dup2(fdOut, STDOUT_FILENO);
+		}
 		execv(tokens->items[0], tokens->items);
         exit(0);
 	} else {
+		//parent process
+		if (fdIn != -1)
+			close(fdIn);
+		if (fdOut != -1)
+			close(fdOut);
         waitpid(child_pid, NULL, 0);
-	    ++cmdExecutions;
     }
+	++CMDS_EXECUTED;
 }
-
-// int isBuiltIn(char* cmd) {
-// 	if (cmd != NULL) {
-// 		for (int i = 0; i < NUM_OF_BUILT_INS; i++) {
-// 			if (strcmp(cmd, BUILT_INS[i]) == 0) {
-// 				return i;
-// 			}
-// 		}
-// 	}
-// 	return -1;
-// }
 
 void echo(tokenlist *tokens) {
 	if (tokens->size > 1) {
@@ -240,39 +264,34 @@ void echo(tokenlist *tokens) {
 			printf(" %s", tokens->items[i]);
 		}
 		printf("\n");
+		++CMDS_EXECUTED;
 	}
 }
 
 void cd(tokenlist *tokens) {
 	if (tokens->size == 1) {
 		chdir(getenv("HOME"));
+		setenv("PWD", getcwd(NULL, 0), 1);
+		++CMDS_EXECUTED;
 	} else if (tokens->size == 2) {
-		char* tok = calloc(strlen(getenv("PWD")), sizeof(char));
-		strcpy(tok, getenv("PWD"));
-		strcat(tok, tokens->items[1]);
-		if (access(tok, F_OK) == 0) {
-			struct stat buf;
-			stat(tok, &buf);
-			if (S_ISDIR(buf.st_mode)) {
-				chdir(tok);
-			} else {
-				printf("cd: %s: Not a directory\n", tokens->items[1]);
-			}
-		} else {
+		int res = chdir(tokens->items[1]);
+		if (res == -1) {
 			printf("cd: %s: No such file or directory\n", tokens->items[1]);
+		} else {
+			setenv("PWD", getcwd(NULL, 0), 1);
+			++CMDS_EXECUTED;
 		}
-		free(tok);
 	} else {
-		printf("cd: too many arguments\n");
+		printf("cd: Too many arguments\n");
 	}
 }
 
 void jobs(void) {
-
+	++CMDS_EXECUTED;
 }
 
 void exitPrgm(void) {
 	waitpid(-1, NULL, 0);
-	printf("Commands executed: %i\n", cmdExecutions);
+	printf("Commands executed: %i\n", CMDS_EXECUTED);
 	exit(EXIT_SUCCESS);
 }
