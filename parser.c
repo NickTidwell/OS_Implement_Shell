@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#include<sys/wait.h> 
+#include<sys/wait.h>
 
 typedef struct {
 	int size;
@@ -19,7 +19,7 @@ tokenlist* new_tokenlist(void);
 void add_token(tokenlist* tokens, char* item);
 void free_tokens(tokenlist* tokens);
 char* checkCommand(char*);
-int executeCmd(char*, char*, char**, char**, char**, int, int[]);
+int executeCmd(char*, char*, char**, char**, char**, int, int[], int);
 int f_cd(char**);
 int f_echo(char**);
 int f_exit(char**);
@@ -89,8 +89,10 @@ int main()
 		char* fOutput = "";
 		char* fInput = "";
 		int builtIn[3];
+		int bgProcesses[10];
 		int error = 0;
 		int pipe = 0;
+		int noWait = 0;
 		tokenlist* tokens = get_tokens(input);
 
 		int argNum = 0;
@@ -269,6 +271,10 @@ int main()
 				argNum++;
 				isCMD = 1;
 			}
+			else if (token[0] == '&') {
+				//Set variable so later don't wait for command to finish
+				noWait = 1;
+			}
 			else {
 				switch (argNum)
 				{
@@ -309,9 +315,18 @@ int main()
 		default:
 			break;
 		}
+		pid_t pid;
 		if (error == 0) {
-			int res = executeCmd(fOutput, fInput, argv1, argv2, argv3, argNum, builtIn);
+			int res = executeCmd(fOutput, fInput, argv1, argv2, argv3, argNum, builtIn, noWait);
+			pid = res;
 			if (res == 0) return 0;
+		}
+		if (noWait == 1) {
+			bgProcesses[0] = pid;
+		}
+		pid_t bgStatus = waitpid(bgProcesses[0], NULL, WNOHANG);
+		if (bgStatus != 0) {
+			printf("Process %d is done\n", bgProcesses[0]);
 		}
 
 		free(input);
@@ -430,7 +445,7 @@ char* checkCommand(char* token) {
 
 }
 
-int executeCmd(char* output, char* input, char** argv1, char** argv2, char** argv3, int argSize, int builtIn[]) {
+int executeCmd(char* output, char* input, char** argv1, char** argv2, char** argv3, int argSize, int builtIn[], int noWait) {
 
 	int status;
 	int i;
@@ -441,8 +456,13 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	pipe(pipes); //1st pipe
 	pipe(pipes + 2); //2nd pipe
 
+	pid_t pid1;
+	pid_t pid2;
+	pid_t pid3;
+
 	// fork the first child (to execute argv1)
-	if (fork() == 0)
+	pid1 = fork();
+	if (pid1 == 0)
 	{
 
 		if (strcmp(output, "") != 0) {
@@ -486,7 +506,8 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	else if (argSize > 0)
 	{
 		// fork second child (to execute argv2)
-		if (fork() == 0)
+		pid2 = fork();
+		if (pid2 == 0)
 		{
 			//direct argv2 read to 1st pipe
 
@@ -517,9 +538,9 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 		}
 		else if (argSize > 1)
 		{
-			// fork third child 
-
-			if (fork() == 0)
+			// fork third child
+			pid3 = fork();
+			if (pid3 == 0)
 			{
 				// replace arv3 stdin with input of 2nd Pipe
 				if (argv3[0] != NULL) dup2(pipes[2], 0);
@@ -555,10 +576,17 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	close(pipes[3]);
 
 	// Wait for all pipe ends
-	for (i = 0; i < argSize + 1; i++) {
-		wait(&status);
+	pid_t bgStatus;
+	if (noWait == 1) {
+		bgStatus = waitpid(pid1, NULL, WNOHANG);
+		printf("%d\n");
+	}
+	else {
+		for (i = 0; i < argSize + 1; i++) {
+			wait(&status);
+		}
 	}
 
 
-	return 1;
+	return pid1;
 }
