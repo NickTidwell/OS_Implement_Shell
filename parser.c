@@ -72,7 +72,10 @@ int f_exit(char** argv) {
 
 int main()
 {
-
+	int bgProcesses[10];
+	for (int i = 0; i < 10; i++) {
+		bgProcesses[i] = 0;
+	}
 
 	while (1) {
 
@@ -89,7 +92,6 @@ int main()
 		char* fOutput = "";
 		char* fInput = "";
 		int builtIn[3];
-		int bgProcesses[10];
 		int error = 0;
 		int pipe = 0;
 		int noWait = 0;
@@ -321,12 +323,25 @@ int main()
 			pid = res;
 			if (res == 0) return 0;
 		}
+		//add background process to list
 		if (noWait == 1) {
-			bgProcesses[0] = pid;
+			for (int i = 0; i < 10; i++) {
+				if (bgProcesses[i] == 0) {
+					bgProcesses[i] = pid;
+					printf("[%d]\t%d\n", i+1, pid);
+					break;
+				}
+			}
 		}
-		pid_t bgStatus = waitpid(bgProcesses[0], NULL, WNOHANG);
-		if (bgStatus != 0) {
-			printf("Process %d is done\n", bgProcesses[0]);
+		//check all background processes
+		for (int i = 0; i < 10; i++) {
+			if (bgProcesses[i] != 0) {
+				pid_t bgStatus = waitpid(bgProcesses[i], NULL, WNOHANG);
+				if (bgStatus != 0) {
+					printf("[%d]+\t%d\n", i+1, bgProcesses[i]);
+					bgProcesses[i] = 0;
+				}
+			}
 		}
 
 		free(input);
@@ -576,12 +591,8 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	close(pipes[3]);
 
 	// Wait for all pipe ends
-	pid_t bgStatus;
-	if (noWait == 1) {
-		bgStatus = waitpid(pid1, NULL, WNOHANG);
-		printf("%d\n");
-	}
-	else {
+
+	if (noWait == 0) {
 		for (i = 0; i < argSize + 1; i++) {
 			wait(&status);
 		}
