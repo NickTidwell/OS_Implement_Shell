@@ -23,18 +23,25 @@ int executeCmd(char*, char*, char**, char**, char**, int, int[], int);
 int f_cd(char**);
 int f_echo(char**);
 int f_exit(char**);
+int f_jobs(char**);
+
+int bgProcesses[10];
+
+static int CMDS_EXECUTED = 0;
 
 char* builtin_str[] = {
   "cd",
   "echo",
-  "exit"
+  "exit",
+  "jobs"
 };
 int (*builtin_func[]) (char**) = {
 	&f_cd,
 	&f_echo,
-	&f_exit
+	&f_exit,
+	&f_jobs
 };
-int builin_size = 3;
+int builin_size = 4;
 
 int f_echo(char** argv) {
 
@@ -71,13 +78,23 @@ int f_cd(char** argv) {
 }
 
 int f_exit(char** argv) {
+	waitpid(-1, NULL, 0);
+	printf("Commands executed: %i\n", CMDS_EXECUTED);
 	return 0;
+}
+
+int f_jobs(char** argv) {
+	for (int i = 0; i < 10; i++) {
+		if (bgProcesses[i] != 0) {
+			printf("[%d]+ %d\n", i+1, bgProcesses[i]);
+		}
+	}
+	return 1;
 }
 
 
 int main()
 {
-	int bgProcesses[10];
 	for (int i = 0; i < 10; i++) {
 		bgProcesses[i] = 0;
 	}
@@ -123,6 +140,10 @@ int main()
 				}
 				else if (strcmp(token, "cd") == 0) {
 					cmdPath = "cd";
+					builtIn[argNum] = 1;
+				}
+				else if (strcmp(token, "jobs") == 0) {
+					cmdPath = "jobs";
 					builtIn[argNum] = 1;
 				}
 				else {
@@ -496,7 +517,7 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 
 		if (strcmp(output, "") != 0) {
 			//Redirects Childs proccess standard output to file
-			int output_fd = open(output, O_WRONLY | O_CREAT | O_TRUNC);
+			int output_fd = open(output, O_RDWR | O_CREAT | O_TRUNC, 0644);
 			dup2(output_fd, STDOUT_FILENO);
 			dup2(output_fd, STDERR_FILENO);
 			close(output_fd);
@@ -548,53 +569,56 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	}
 	if (argSize > 1)
 	{
-		
-			// fork third child
-			pid3 = fork();
-			if (pid3 == 0)
-			{
-				// replace arv3 stdin with input of 2nd Pipe
-				if (argv3[0] != NULL) dup2(pipes[2], 0);
 
-				// close all pipes
-				close(pipes[0]);
-				close(pipes[1]);
-				close(pipes[2]);
-				close(pipes[3]);
+		// fork third child
+		pid3 = fork();
+		if (pid3 == 0)
+		{
+			// replace arv3 stdin with input of 2nd Pipe
+			if (argv3[0] != NULL) dup2(pipes[2], 0);
 
-				execv(argv3[0], argv3);
-				exit(0);
+			// close all pipes
+			close(pipes[0]);
+			close(pipes[1]);
+			close(pipes[2]);
+			close(pipes[3]);
 
-			}
-			
+			execv(argv3[0], argv3);
+			exit(0);
+
+		}
+
 
 	}
 
 
-		close(pipes[0]);
-		close(pipes[1]);
-		close(pipes[2]);
-		close(pipes[3]);
+	close(pipes[0]);
+	close(pipes[1]);
+	close(pipes[2]);
+	close(pipes[3]);
 
-		// Wait for all pipe ends
+	// Wait for all pipe ends
 
-		if (noWait == 0) {
-			for (i = 0; i < argSize + 1; i++) {
-				wait(&status);
-			}
+	if (noWait == 0) {
+		for (i = 0; i < argSize + 1; i++) {
+			wait(&status);
 		}
+	}
 
-		if (argSize = 0) {
-			return pid1;
-		}
-		else if (argSize = 1) {
-			return pid2;
-		}
-		else if (argSize = 2) {
-			return pid3;
-		}
-		else {
-			return 1;
-		}
-	
+	if (argSize = 0) {
+		return 1;
+	}
+	else if (argSize = 1) {
+		return 1;
+	}
+	else if (argSize = 2) {
+		return 1;
+	}
+	else {
+		return 1;
+	}
+
+
+	++CMDS_EXECUTED;
+
 }
