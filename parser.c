@@ -347,7 +347,7 @@ int main()
 		if (error == 0) {
 			int res = executeCmd(fOutput, fInput, argv1, argv2, argv3, argNum, builtIn, noWait);
 			pid = res;
-			if (res == -1) return 0;
+			if (res == -5) return 0;
 		}
 		//add background process to list
 		if (noWait == 1) {
@@ -362,7 +362,7 @@ int main()
 		//check all background processes
 		for (int i = 0; i < 10; i++) {
 			if (bgProcesses[i] != 0) {
-				pid_t bgStatus = waitpid(bgProcesses[i], NULL, WNOHANG);
+				pid_t bgStatus = waitpid(bgProcesses[i], NULL,0 );
 				if (bgStatus != 0) {
 					printf("[%d]+\t%d\n", i+1, bgProcesses[i]);
 					bgProcesses[i] = 0;
@@ -495,7 +495,7 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			if (strcmp(argv1[0], builtin_str[i]) == 0) {
 				int res = (*builtin_func[i])(argv1);
 				if (res == 0)
-					return -1;
+					return -5;
 			}
 		}
 		return 1; // DO NOT SUPPORT REDIRECTS FOR BUILT INS
