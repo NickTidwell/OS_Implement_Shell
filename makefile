@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -g -std=c99
+CFLAGS = -Wall -std=c99
 #List of dependencies (.h)
 DEPS =
 #List of object files (.o)
