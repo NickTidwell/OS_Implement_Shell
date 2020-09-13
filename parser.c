@@ -498,7 +498,7 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 					return 0;
 			}
 		}
-		return 1;
+		return 1; // DO NOT SUPPORT REDIRECTS FOR BUILT INS
 	}
 
 	// make 2 pipes (argv1 to argv2 and argv2 to argv3); each has 2 fds
@@ -543,7 +543,7 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 
 		exit(0);
 	}
-	if (argSize > 0)
+	else if (argSize > 0)
 	{
 		// fork second child (to execute argv2)
 
@@ -566,28 +566,29 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			exit(0);
 
 		}
-	}
-	if (argSize > 1)
-	{
-
-		// fork third child
-		pid3 = fork();
-		if (pid3 == 0)
+		else if (argSize > 1)
 		{
-			// replace arv3 stdin with input of 2nd Pipe
-			if (argv3[0] != NULL) dup2(pipes[2], 0);
 
-			// close all pipes
-			close(pipes[0]);
-			close(pipes[1]);
-			close(pipes[2]);
-			close(pipes[3]);
+			// fork third child
+			pid3 = fork();
+			if (pid3 == 0)
+			{
+				// replace arv3 stdin with input of 2nd Pipe
+				if (argv3[0] != NULL) dup2(pipes[2], 0);
 
-			execv(argv3[0], argv3);
-			exit(0);
+				// close all pipes
+				close(pipes[0]);
+				close(pipes[1]);
+				close(pipes[2]);
+				close(pipes[3]);
+
+				execv(argv3[0], argv3);
+				exit(0);
+
+			}
+
 
 		}
-
 
 	}
 
@@ -604,21 +605,10 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			wait(&status);
 		}
 	}
-
-	if (argSize = 0) {
-		return 1;
-	}
-	else if (argSize = 1) {
-		return 1;
-	}
-	else if (argSize = 2) {
-		return 1;
-	}
-	else {
-		return 1;
-	}
-
-
 	++CMDS_EXECUTED;
+
+	return 1;
+
+
 
 }
