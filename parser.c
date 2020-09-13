@@ -54,13 +54,19 @@ int f_cd(char** argv) {
 	if (*++argv != NULL)
 		printf("Too many arguments\n");
 
+	printf("%s: \n", path);
 	if (path != NULL) {
 		int res = chdir(path);
 
-		if (res == -1)
+		if (res != 0)
 			printf("%s: No such file or directory.", path);
 	}
 	else chdir(getenv("HOME"));
+
+	char s[100];
+	char* cwd = getcwd(s, 100);
+	setenv("PWD", cwd, 1);
+
 	free(path);
 	return 1;
 }
@@ -78,7 +84,7 @@ int main()
 
 		char buff[1000];
 
-		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getcwd(buff, 1000)); //This is the prompt
+		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getenv("PWD")); //This is the prompt
 
 		/* input contains the whole command
 		 * tokens contains substrings from input split by spaces
@@ -442,6 +448,15 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	pipe(pipes + 2); //2nd pipe
 
 	// fork the first child (to execute argv1)
+	if (builtIn[0] == 1) {
+		for (int i = 0; i < builin_size; i++) {
+			if (strcmp(argv1[0], builtin_str[i]) == 0) {
+				int res = (*builtin_func[i])(argv1);
+				if (res == 0)
+					return 0;
+			}
+		}
+	}
 	if (fork() == 0)
 	{
 
@@ -469,24 +484,25 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 		close(pipes[2]);
 		close(pipes[3]);
 
-		if (builtIn[0] == 1) {
+
+
+			execv(argv1[0], argv1);
+		
+		exit(0);
+	}
+	if (argSize > 0)
+	{
+		if (builtIn[1] == 1) {
 			for (int i = 0; i < builin_size; i++) {
-				if (strcmp(argv1[0], builtin_str[i]) == 0) {
-					int res = (*builtin_func[i])(argv1);
+				if (strcmp(argv2[0], builtin_str[i]) == 0) {
+					int res = (*builtin_func[i])(argv2);
 					if (res == 0)
 						return 0;
 				}
 			}
 		}
-		else {
-			execv(argv1[0], argv1);
-		}
-		exit(0);
-	}
-	else if (argSize > 0)
-	{
 		// fork second child (to execute argv2)
-		if (fork() == 0)
+		else if (fork() == 0)
 		{
 			//direct argv2 read to 1st pipe
 
@@ -500,50 +516,34 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			close(pipes[1]);
 			close(pipes[2]);
 			close(pipes[3]);
-
-			if (builtIn[1] == 1) {
-				for (int i = 0; i < builin_size; i++) {
-					if (strcmp(argv2[0], builtin_str[i]) == 0) {
-						int res = (*builtin_func[i])(argv2);
-						if (res == 0)
-							return 0;
-					}
-				}
-			}
-			else {
 				execv(argv2[0], argv2);
-			}
 			exit(0);
 		}
-		else if (argSize > 1)
+	if (argSize > 1)
 		{
 			// fork third child 
-
-			if (fork() == 0)
-			{
-				// replace arv3 stdin with input of 2nd Pipe
-				if (argv3[0] != NULL) dup2(pipes[2], 0);
-
-				// close all pipes
-				close(pipes[0]);
-				close(pipes[1]);
-				close(pipes[2]);
-				close(pipes[3]);
-
-				if (builtIn[2] == 1) {
-					for (int i = 0; i < builin_size; i++) {
-						if (strcmp(argv3[0], builtin_str[i]) == 0) {
-							int res = (*builtin_func[i])(argv3);
-							if (res == 0)
-								return 0;
-						}
-					}
+		if (builtIn[2] == 1) {
+			for (int i = 0; i < builin_size; i++) {
+				if (strcmp(argv3[0], builtin_str[i]) == 0) {
+					int res = (*builtin_func[i])(argv3);
+					if (res == 0)
+						return 0;
 				}
-				else {
-					execv(argv3[0], argv3);
-				}
+			}
+		}
+		if (fork() == 0)
+		{
+			// replace arv3 stdin with input of 2nd Pipe
+			if (argv3[0] != NULL) dup2(pipes[2], 0);
 
-				exit(0);
+			// close all pipes
+			close(pipes[0]);
+			close(pipes[1]);
+			close(pipes[2]);
+			close(pipes[3]);
+
+			execv(argv3[0], argv3);
+			exit(0);
 			}
 		}
 	}
