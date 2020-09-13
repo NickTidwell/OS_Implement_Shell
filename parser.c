@@ -469,7 +469,16 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 
 	int status;
 	int i;
-
+	if (builtIn[0] == 1) {
+		for (int i = 0; i < builin_size; i++) {
+			if (strcmp(argv1[0], builtin_str[i]) == 0) {
+				int res = (*builtin_func[i])(argv1);
+				if (res == 0)
+					return 0;
+			}
+		}
+		return 1;
+	}
 
 	// make 2 pipes (argv1 to argv2 and argv2 to argv3); each has 2 fds
 	int pipes[4];
@@ -481,16 +490,6 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	pid_t pid3;
 
 	// fork the first child (to execute argv1)
-	if (builtIn[0] == 1) {
-		for (int i = 0; i < builin_size; i++) {
-			if (strcmp(argv1[0], builtin_str[i]) == 0) {
-				int res = (*builtin_func[i])(argv1);
-				if (res == 0)
-					return 0;
-			}
-		}
-	}
-
 	pid1 = fork();
 	if (pid1 == 0)
 	{
@@ -519,23 +518,12 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 		close(pipes[2]);
 		close(pipes[3]);
 
-
-
 		execv(argv1[0], argv1);
 
 		exit(0);
 	}
 	if (argSize > 0)
 	{
-		if (builtIn[1] == 1) {
-			for (int i = 0; i < builin_size; i++) {
-				if (strcmp(argv2[0], builtin_str[i]) == 0) {
-					int res = (*builtin_func[i])(argv2);
-					if (res == 0)
-						return 0;
-				}
-			}
-		}
 		// fork second child (to execute argv2)
 
 		pid2 = fork();
@@ -555,39 +543,32 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			close(pipes[3]);
 			execv(argv2[0], argv2);
 			exit(0);
+
 		}
-		if (argSize > 1)
-		{
+	}
+	if (argSize > 1)
+	{
+		
+			// fork third child
+			pid3 = fork();
+			if (pid3 == 0)
+			{
+				// replace arv3 stdin with input of 2nd Pipe
+				if (argv3[0] != NULL) dup2(pipes[2], 0);
 
-			// fork third child 
-			if (builtIn[2] == 1) {
-				for (int i = 0; i < builin_size; i++) {
-					if (strcmp(argv3[0], builtin_str[i]) == 0) {
-						int res = (*builtin_func[i])(argv3);
-						if (res == 0)
-							return 0;
-					}
-				}
+				// close all pipes
+				close(pipes[0]);
+				close(pipes[1]);
+				close(pipes[2]);
+				close(pipes[3]);
 
-				// fork third child
-				pid3 = fork();
-				if (pid3 == 0)
-				{
-					// replace arv3 stdin with input of 2nd Pipe
-					if (argv3[0] != NULL) dup2(pipes[2], 0);
+				execv(argv3[0], argv3);
+				exit(0);
 
-					// close all pipes
-					close(pipes[0]);
-					close(pipes[1]);
-					close(pipes[2]);
-					close(pipes[3]);
-
-					execv(argv3[0], argv3);
-					exit(0);
-				}
 			}
+			
 
-		}
+	}
 
 
 		close(pipes[0]);
@@ -615,5 +596,5 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 		else {
 			return 1;
 		}
-	}
+	
 }
