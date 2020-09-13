@@ -598,13 +598,13 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 		}
 	}
 
-	if (argSize = 0) {
+	if (argSize == 0) {
 		return pid1;
 	}
-	else if (argSize = 1) {
+	else if (argSize == 1) {
 		return pid2;
 	}
-	else if (argSize = 2) {
+	else if (argSize == 2) {
 		return pid3;
 	}
 	else {
