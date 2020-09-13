@@ -23,16 +23,21 @@ int executeCmd(char*, char*, char**, char**, char**, int, int[], int);
 int f_cd(char**);
 int f_echo(char**);
 int f_exit(char**);
+int f_jobs(char**);
+
+int bgProcesses[10];
 
 char* builtin_str[] = {
   "cd",
   "echo",
-  "exit"
+  "exit",
+	"jobs"
 };
 int (*builtin_func[]) (char**) = {
 	&f_cd,
 	&f_echo,
-	&f_exit
+	&f_exit,
+	&f_jobs
 };
 int builin_size = 3;
 
@@ -74,10 +79,18 @@ int f_exit(char** argv) {
 	return 0;
 }
 
+int f_jobs(char** argv) {
+	for (int i = 0; i < 10; i++) {
+		if (bgProcesses[i] != 0) {
+			printf("[%d]+ %d\n", i+1, bgProcesses[i]);
+		}
+	}
+	return 1;
+}
+
 
 int main()
 {
-	int bgProcesses[10];
 	for (int i = 0; i < 10; i++) {
 		bgProcesses[i] = 0;
 	}
@@ -123,6 +136,10 @@ int main()
 				}
 				else if (strcmp(token, "cd") == 0) {
 					cmdPath = "cd";
+					builtIn[argNum] = 1;
+				}
+				else if (strcmp(token, "jobs") == 0) {
+					cmdPath = "jobs";
 					builtIn[argNum] = 1;
 				}
 				else {
@@ -559,7 +576,7 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 		if (argSize > 1)
 		{
 
-			// fork third child 
+			// fork third child
 			if (builtIn[2] == 1) {
 				for (int i = 0; i < builin_size; i++) {
 					if (strcmp(argv3[0], builtin_str[i]) == 0) {
