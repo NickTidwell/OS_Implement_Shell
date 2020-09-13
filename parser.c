@@ -607,7 +607,13 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	}
 	++CMDS_EXECUTED;
 
-	return 1;
+	if (noWait == 1 && argSize == 0) return pid1;
+
+	else if (noWait == 1 && argSize == 1) return pid2;
+
+	else if (noWait == 1 && argSize == 2) return pid3;
+
+	else return 1;
 
 
 
