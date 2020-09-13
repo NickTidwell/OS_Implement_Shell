@@ -78,7 +78,17 @@ int f_cd(char** argv) {
 }
 
 int f_exit(char** argv) {
-	waitpid(-1, NULL, 0);
+
+	for (int i = 0; i < 10; i++) {
+		if (bgProcesses[i] != 0) {
+			pid_t bgStatus = waitpid(bgProcesses[i], NULL, 0);
+			if (bgStatus != 0) {
+				printf("[%d]+\t%d\n", i + 1, bgProcesses[i]);
+				bgProcesses[i] = 0;
+			}
+		}
+
+	}
 	printf("Commands executed: %i\n", CMDS_EXECUTED);
 	return 0;
 }
@@ -371,7 +381,7 @@ int main()
 					}
 
 				}
-					}
+		
 
 
 		free(input);
