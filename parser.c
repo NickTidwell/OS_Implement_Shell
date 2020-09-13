@@ -27,6 +27,8 @@ int f_jobs(char**);
 
 int bgProcesses[10];
 
+static int CMDS_EXECUTED = 0;
+
 char* builtin_str[] = {
   "cd",
   "echo",
@@ -76,6 +78,8 @@ int f_cd(char** argv) {
 }
 
 int f_exit(char** argv) {
+	waitpid(-1, NULL, 0);
+	printf("Commands executed: %i\n", CMDS_EXECUTED);
 	return 0;
 }
 
@@ -514,7 +518,7 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 
 		if (strcmp(output, "") != 0) {
 			//Redirects Childs proccess standard output to file
-			int output_fd = open(output, O_WRONLY | O_CREAT | O_TRUNC);
+			int output_fd = open(output, O_RDWR | O_CREAT | O_TRUNC, 0644);
 			dup2(output_fd, STDOUT_FILENO);
 			dup2(output_fd, STDERR_FILENO);
 			close(output_fd);
@@ -633,4 +637,5 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			return 1;
 		}
 	}
+	++CMDS_EXECUTED;
 }
