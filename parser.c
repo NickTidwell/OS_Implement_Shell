@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#include<sys/wait.h> 
+#include<sys/wait.h>
 
 typedef struct {
 	int size;
@@ -19,7 +19,7 @@ tokenlist* new_tokenlist(void);
 void add_token(tokenlist* tokens, char* item);
 void free_tokens(tokenlist* tokens);
 char* checkCommand(char*);
-int executeCmd(char*, char*, char**, char**, char**, int, int[]);
+int executeCmd(char*, char*, char**, char**, char**, int, int[], int);
 int f_cd(char**);
 int f_echo(char**);
 int f_exit(char**);
@@ -54,7 +54,6 @@ int f_cd(char** argv) {
 	if (*++argv != NULL)
 		printf("Too many arguments\n");
 
-	printf("%s: \n", path);
 	if (path != NULL) {
 		int res = chdir(path);
 
@@ -78,7 +77,10 @@ int f_exit(char** argv) {
 
 int main()
 {
-
+	int bgProcesses[10];
+	for (int i = 0; i < 10; i++) {
+		bgProcesses[i] = 0;
+	}
 
 	while (1) {
 
@@ -97,6 +99,7 @@ int main()
 		int builtIn[3];
 		int error = 0;
 		int pipe = 0;
+		int noWait = 0;
 		tokenlist* tokens = get_tokens(input);
 
 		int argNum = 0;
@@ -275,6 +278,10 @@ int main()
 				argNum++;
 				isCMD = 1;
 			}
+			else if (token[0] == '&') {
+				//Set variable so later don't wait for command to finish
+				noWait = 1;
+			}
 			else {
 				switch (argNum)
 				{
@@ -315,9 +322,31 @@ int main()
 		default:
 			break;
 		}
+		pid_t pid;
 		if (error == 0) {
-			int res = executeCmd(fOutput, fInput, argv1, argv2, argv3, argNum, builtIn);
+			int res = executeCmd(fOutput, fInput, argv1, argv2, argv3, argNum, builtIn, noWait);
+			pid = res;
 			if (res == 0) return 0;
+		}
+		//add background process to list
+		if (noWait == 1) {
+			for (int i = 0; i < 10; i++) {
+				if (bgProcesses[i] == 0) {
+					bgProcesses[i] = pid;
+					printf("[%d]\t%d\n", i+1, pid);
+					break;
+				}
+			}
+		}
+		//check all background processes
+		for (int i = 0; i < 10; i++) {
+			if (bgProcesses[i] != 0) {
+				pid_t bgStatus = waitpid(bgProcesses[i], NULL, WNOHANG);
+				if (bgStatus != 0) {
+					printf("[%d]+\t%d\n", i+1, bgProcesses[i]);
+					bgProcesses[i] = 0;
+				}
+			}
 		}
 
 		free(input);
@@ -436,7 +465,7 @@ char* checkCommand(char* token) {
 
 }
 
-int executeCmd(char* output, char* input, char** argv1, char** argv2, char** argv3, int argSize, int builtIn[]) {
+int executeCmd(char* output, char* input, char** argv1, char** argv2, char** argv3, int argSize, int builtIn[], int noWait) {
 
 	int status;
 	int i;
@@ -446,6 +475,10 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	int pipes[4];
 	pipe(pipes); //1st pipe
 	pipe(pipes + 2); //2nd pipe
+
+	pid_t pid1;
+	pid_t pid2;
+	pid_t pid3;
 
 	// fork the first child (to execute argv1)
 	if (builtIn[0] == 1) {
@@ -457,7 +490,9 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			}
 		}
 	}
-	if (fork() == 0)
+
+	pid1 = fork();
+	if (pid1 == 0)
 	{
 
 		if (strcmp(output, "") != 0) {
@@ -486,8 +521,8 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 
 
 
-			execv(argv1[0], argv1);
-		
+		execv(argv1[0], argv1);
+
 		exit(0);
 	}
 	if (argSize > 0)
@@ -502,7 +537,9 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			}
 		}
 		// fork second child (to execute argv2)
-		else if (fork() == 0)
+
+		pid2 = fork();
+		if (pid2 == 0)
 		{
 			//direct argv2 read to 1st pipe
 
@@ -516,49 +553,67 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			close(pipes[1]);
 			close(pipes[2]);
 			close(pipes[3]);
-				execv(argv2[0], argv2);
+			execv(argv2[0], argv2);
 			exit(0);
 		}
-	if (argSize > 1)
+		if (argSize > 1)
 		{
+
 			// fork third child 
-		if (builtIn[2] == 1) {
-			for (int i = 0; i < builin_size; i++) {
-				if (strcmp(argv3[0], builtin_str[i]) == 0) {
-					int res = (*builtin_func[i])(argv3);
-					if (res == 0)
-						return 0;
+			if (builtIn[2] == 1) {
+				for (int i = 0; i < builin_size; i++) {
+					if (strcmp(argv3[0], builtin_str[i]) == 0) {
+						int res = (*builtin_func[i])(argv3);
+						if (res == 0)
+							return 0;
+					}
+				}
+
+				// fork third child
+				pid3 = fork();
+				if (pid3 == 0)
+				{
+					// replace arv3 stdin with input of 2nd Pipe
+					if (argv3[0] != NULL) dup2(pipes[2], 0);
+
+					// close all pipes
+					close(pipes[0]);
+					close(pipes[1]);
+					close(pipes[2]);
+					close(pipes[3]);
+
+					execv(argv3[0], argv3);
+					exit(0);
 				}
 			}
+
 		}
-		if (fork() == 0)
-		{
-			// replace arv3 stdin with input of 2nd Pipe
-			if (argv3[0] != NULL) dup2(pipes[2], 0);
 
-			// close all pipes
-			close(pipes[0]);
-			close(pipes[1]);
-			close(pipes[2]);
-			close(pipes[3]);
 
-			execv(argv3[0], argv3);
-			exit(0);
+		close(pipes[0]);
+		close(pipes[1]);
+		close(pipes[2]);
+		close(pipes[3]);
+
+		// Wait for all pipe ends
+
+		if (noWait == 0) {
+			for (i = 0; i < argSize + 1; i++) {
+				wait(&status);
 			}
 		}
+
+		if (argSize = 0) {
+			return pid1;
+		}
+		else if (argSize = 1) {
+			return pid2;
+		}
+		else if (argSize = 2) {
+			return pid3;
+		}
+		else {
+			return 1;
+		}
 	}
-
-
-	close(pipes[0]);
-	close(pipes[1]);
-	close(pipes[2]);
-	close(pipes[3]);
-
-	// Wait for all pipe ends
-	for (i = 0; i < argSize + 1; i++) {
-		wait(&status);
-	}
-
-
-	return 1;
 }
