@@ -252,6 +252,8 @@ void free_tokens(tokenlist *tokens)
 char* cmdSearch (char *cmd) {
 	if (cmd[0] == '/') {
 		if (access(cmd, F_OK) == 0) return cmd;
+	} else if (cmd[0] == '.' || strcmp(cmd, "./shell")) {
+		return cmd;
 	} else {
 		char* path = (char*)malloc(strlen(getenv("PATH")));
 		strcpy(path, getenv("PATH"));
@@ -265,8 +267,8 @@ char* cmdSearch (char *cmd) {
 			strcat(token, cmdToAppend);		/* concat one of the paths to '/[cmd]' */
 			if (access(token, F_OK) == 0) return token;		/* checks if cmd exists in file path */
 		}
-		free(cmdToAppend);
-    	free(path);	
+		//free(cmdToAppend);
+    	//free(path);	
 	}
 	printf("%s: command not found\n", cmd);
 	return NULL;
