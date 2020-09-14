@@ -72,14 +72,14 @@ int main() {
 			if (tokens->size == 1)
             	exitPrgm();
 			else {
-				printf("exit: Too many arguments\n");
+				printf("exit: too many arguments\n");
 				continue;
 			}
 		else if (strcmp(cmd, "jobs") == 0) {
 			if (tokens->size == 1)
             	jobs();
 			else {
-				printf("jobs: Too many arguments\n");
+				printf("jobs: too many arguments\n");
 			}
 			continue;
 		} else if (strcmp(cmd, "cd") == 0)
