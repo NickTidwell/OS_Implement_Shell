@@ -429,7 +429,15 @@ void jobs(void) {
 }
 
 void exitPrgm(void) {
-	waitpid(-1, NULL, 0);
+	for (int i = 0; i < 10; i++) {
+		if (bgProcesses[i] != 0) {
+			int status = waitpid(bgProcesses[i], NULL, 0);
+			if (status != 0) {
+				printf("[%d]+\t%d\t%s\n", i + 1, bgProcesses[i], bgCommands[i]);
+				bgProcesses[i] = 0;
+			}
+		}
+	}
 	printf("Commands executed: %i\n", CMDS_EXECUTED);
 	exit(EXIT_SUCCESS);
 }
