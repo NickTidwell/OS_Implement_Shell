@@ -34,13 +34,25 @@ static char* F_IN;
 
 static int CMDS_EXECUTED = 0;
 static int PIPE_COUNT;
+static int NO_WAIT;
+
+int bgProcesses[10];
+char * bgCommands[10];
 
 int main() {
+
+	for (int i = 0; i < 10; i++) {
+		bgProcesses[i] = 0;
+		bgCommands[i] = NULL;
+	}
 
 	while (1) {
 		F_OUT = NULL;
 		F_IN = NULL;
 		PIPE_COUNT = 0;
+		NO_WAIT = 0;
+
+
 
 		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getenv("PWD"));
 
@@ -125,15 +137,39 @@ int main() {
 					tokens->items[i] = realloc(tokens->items[i], strlen(cmdPath) + 1);
 					strcpy(tokens->items[i], cmdPath);
 				}
+			} else if (token[0] == '&') {
+				++NO_WAIT;
+				for (int i = 0; i < 10; i++) {
+					if (bgProcesses[i] == 0) {
+						bgCommands[i] = calloc(strlen(tokens->items[0]) + 1, sizeof(char));
+						strcpy(bgCommands[i], tokens->items[0]);
+						for (int j = 1; j < tokens->size; j++) {
+							bgCommands[i] = (char*)realloc(bgCommands[i], (strlen(bgCommands[i]) + strlen(tokens->items[j]) + 2));
+							strcat(bgCommands[i], " ");
+							strcat(bgCommands[i], tokens->items[j]);
+						}
+						break;
+					}
+				}
 			}
 		}
 		if (cmdPath == NULL && PIPE_COUNT > 0) continue;
-		
+
 		/* executing command */
 		fp(tokens);
 
         free(input);
 		free_tokens(tokens);
+
+		for (int i = 0; i < 10; i++) {
+			if (bgProcesses[i] != 0) {
+				int status = waitpid(bgProcesses[i], NULL, WNOHANG);
+				if (status != 0) {
+					printf("[%d]+\t%d\t%s\n", i+1, bgProcesses[i], bgCommands[i]);
+					bgProcesses[i] = 0;
+				}
+			}
+		}
 	}
 	return 0;
 }
@@ -241,7 +277,7 @@ void cmdExecute(tokenlist *tokens) {
 			tokLists[i] = new_tokenlist();
 			for ( ; j < tokens->size; j++) {
 				char* token = tokens->items[j];
-				if (token[0] == '|') {
+				if (token[0] == '|' || token[0] == '&') {
 					++j;
 					break;
 				} else {
@@ -252,7 +288,7 @@ void cmdExecute(tokenlist *tokens) {
 			tokLists[i]->items = (char**)realloc(tokLists[i]->items, (tokLists[i]->size + 1)*sizeof(char*));
 			tokLists[i]->items[tokLists[i]->size] = NULL;
 		}
-		
+
 		int p_fds[2];
 		int fd_in = 0;
 		pid_t pid;
@@ -271,15 +307,25 @@ void cmdExecute(tokenlist *tokens) {
 				perror("fork");
 				exit(1);
 			} else {
-				wait(NULL);
+				if (NO_WAIT == 0)
+					wait(NULL);
 				close(p_fds[1]);
 				fd_in = p_fds[0];
+			}
+			if (NO_WAIT == 1 && i == PIPE_COUNT) {
+				for (int i = 0; i < 10; i++) {
+					if (bgProcesses[i] == 0) {
+						bgProcesses[i] = pid;
+						printf("[%d]\t%d\n", i+1, bgProcesses[i]);
+						break;
+					}
+				}
 			}
 		}
 		/* close pipes */
 		close(p_fds[0]);
 		close(p_fds[1]);
-		
+
 		/* free tokLists */
 		for (int i = 0; i < PIPE_COUNT + 1; i++) {
 			free_tokens(tokLists[i]);
@@ -287,6 +333,9 @@ void cmdExecute(tokenlist *tokens) {
 		free(tokLists);
 
 	} else {
+		if (NO_WAIT == 1) {
+			tokens->items[tokens->size - 1] = NULL;
+		}
 		int fdIn = -1, fdOut = -1;
 		/* open i/o files */
 		if (F_IN != NULL) {
@@ -326,7 +375,17 @@ void cmdExecute(tokenlist *tokens) {
 				close(fdIn);
 			if (fdOut != -1)
 				close(fdOut);
-			waitpid(pid1, NULL, 0);
+			if (NO_WAIT == 1) {
+				for (int i = 0; i < 10; i++) {
+					if (bgProcesses[i] == 0) {
+						bgProcesses[i] = pid1;
+						printf("[%d]\t%d\n", i+1, bgProcesses[i]);
+						break;
+					}
+				}
+			} else {
+				waitpid(pid1, NULL, 0);
+			}
 		}
 	}
 	++CMDS_EXECUTED;
@@ -362,7 +421,11 @@ void cd(tokenlist *tokens) {
 }
 
 void jobs(void) {
-
+	for (int i = 0; i < 10; i++) {
+		if (bgProcesses[i] != 0) {
+			printf("[%d]\t%d\t%s\n", i+1, bgProcesses[i], bgCommands[i]);
+		}
+	}
 	++CMDS_EXECUTED;
 }
 
