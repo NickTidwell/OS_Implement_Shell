@@ -51,13 +51,24 @@ int main() {
 		char *input = get_input();
 		tokenlist *tokens = get_tokens(input, " ");
 
+		if (tokens->size == 0) continue;
+
 		/* checks to see if cmd is a built-in cmd */
 		char *cmd = tokens->items[0];
 		char* cmdPath;
 		if (strcmp(cmd, "exit") == 0)
-            exitPrgm();
+			if (tokens->size == 1)
+            	exitPrgm();
+			else {
+				printf("exit: Too many arguments\n");
+				continue;
+			}
 		else if (strcmp(cmd, "jobs") == 0) {
-			jobs();
+			if (tokens->size == 1)
+            	jobs();
+			else {
+				printf("jobs: Too many arguments\n");
+			}
 			continue;
 		} else if (strcmp(cmd, "cd") == 0)
 			fp = cd;
@@ -66,7 +77,9 @@ int main() {
 		else {
 			fp = cmdExecute;
 			/* checks if cmd is a valid cmd */
-			cmdPath = cmdSearch(cmd);
+			char *arg = calloc(strlen(cmd), sizeof(char));
+			strcpy(arg, cmd);
+			cmdPath = cmdSearch(arg);
 			if (cmdPath == NULL) continue;
 			tokens->items[0] = cmdPath;
 		}
@@ -214,7 +227,6 @@ char* cmdSearch (char *cmd) {
 		if (access(token, F_OK) == 0) return token;		/* checks if cmd exists in file path */
 	}
 	printf("%s: command not found\n", cmd);
-    free_tokens(pathTokens);
     free(cmdToAppend);
     free(path);
 	return NULL;
