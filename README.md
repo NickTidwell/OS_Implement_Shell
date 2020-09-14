@@ -27,6 +27,7 @@
 * implemented External Command Execution
 * implemented i/o redirection
 * implemented piping
+* implemented 'cd'
 
 ### William Tsaur
 
@@ -35,6 +36,8 @@
 * modified environment variable parsing
 * modified $PATH search implementation
 * implemented External Command Execution
+* modified i/o redirection
+* modified piping
 * implemented 'exit'
 * modified 'cd'
 
@@ -43,6 +46,7 @@
 * implemented background processing
 * implemented 'jobs'
 
-## Extra Credit (task - completed by)
+## Extra Credit (task - implemented by)
 
-* 
+* Shell-ception - Group
+* Unlimited Piping - William Tsaur
