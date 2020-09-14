@@ -250,24 +250,19 @@ void free_tokens(tokenlist *tokens)
 }
 
 char* cmdSearch (char *cmd) {
-	if (cmd[0] == '/') {
-		if (access(cmd, F_OK) == 0) return cmd;
-	} else if (cmd[0] == '.' || strcmp(cmd, "./shell")) {
-		return cmd;
-	} else {
-		char* path = (char*)malloc(strlen(getenv("PATH")));
-		strcpy(path, getenv("PATH"));
-		tokenlist *pathTokens = get_tokens(path, ":");	/* retrieving PATH and separating paths into tokens */
-		char* cmdToAppend = (char*)malloc(strlen(cmd) + 1);
-		strcpy(cmdToAppend, "/");
-		strcat(cmdToAppend, cmd);	/* adding '/' before cmd */
-		for (int i = 0; i < pathTokens->size; i++) {
-			char *token = pathTokens->items[i];
-			token = (char*)realloc(token, strlen(cmdToAppend) + strlen(token) + 1);
-			strcat(token, cmdToAppend);		/* concat one of the paths to '/[cmd]' */
-			if (access(token, F_OK) == 0) return token;		/* checks if cmd exists in file path */
-		}
+	char* path = (char*)malloc(strlen(getenv("PATH")));
+	strcpy(path, getenv("PATH"));
+	tokenlist *pathTokens = get_tokens(path, ":");	/* retrieving PATH and separating paths into tokens */
+	char* cmdToAppend = (char*)malloc(strlen(cmd) + 1);
+	strcpy(cmdToAppend, "/");
+	strcat(cmdToAppend, cmd);	/* adding '/' before cmd */
+	for (int i = 0; i < pathTokens->size; i++) {
+		char *token = pathTokens->items[i];
+		token = (char*)realloc(token, strlen(cmdToAppend) + strlen(token) + 1);
+		strcat(token, cmdToAppend);		/* concat one of the paths to '/[cmd]' */
+		if (access(token, F_OK) == 0) return token;		/* checks if cmd exists in file path */
 	}
+	if (access(cmd, F_OK) == 0) return cmd;
 	printf("%s: command not found\n", cmd);
 	return NULL;
 }
