@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#include<sys/wait.h> 
+#include<sys/wait.h>
 
 typedef struct {
 	int size;
@@ -19,22 +19,29 @@ tokenlist* new_tokenlist(void);
 void add_token(tokenlist* tokens, char* item);
 void free_tokens(tokenlist* tokens);
 char* checkCommand(char*);
-int executeCmd(char*, char*, char**, char**, char**, int, int[]);
+int executeCmd(char*, char*, char**, char**, char**, int, int[], int);
 int f_cd(char**);
 int f_echo(char**);
 int f_exit(char**);
+int f_jobs(char**);
+
+int bgProcesses[10];
+
+static int CMDS_EXECUTED = 0;
 
 char* builtin_str[] = {
   "cd",
   "echo",
-  "exit"
+  "exit",
+  "jobs"
 };
 int (*builtin_func[]) (char**) = {
 	&f_cd,
 	&f_echo,
-	&f_exit
+	&f_exit,
+	&f_jobs
 };
-int builin_size = 3;
+int builin_size = 4;
 
 int f_echo(char** argv) {
 
@@ -57,28 +64,56 @@ int f_cd(char** argv) {
 	if (path != NULL) {
 		int res = chdir(path);
 
-		if (res == -1)
+		if (res != 0)
 			printf("%s: No such file or directory.", path);
 	}
 	else chdir(getenv("HOME"));
+
+	char s[100];
+	char* cwd = getcwd(s, 100);
+	setenv("PWD", cwd, 1);
+
 	free(path);
 	return 1;
 }
 
 int f_exit(char** argv) {
+
+	for (int i = 0; i < 10; i++) {
+		if (bgProcesses[i] != 0) {
+			pid_t bgStatus = waitpid(bgProcesses[i], NULL, 0);
+			if (bgStatus != 0) {
+				printf("[%d]+\t%d\n", i + 1, bgProcesses[i]);
+				bgProcesses[i] = 0;
+			}
+		}
+
+	}
+	printf("Commands executed: %i\n", CMDS_EXECUTED);
 	return 0;
+}
+
+int f_jobs(char** argv) {
+	for (int i = 0; i < 10; i++) {
+		if (bgProcesses[i] != 0) {
+			printf("[%d]+ %d\n", i+1, bgProcesses[i]);
+		}
+	}
+	return 1;
 }
 
 
 int main()
 {
-
+	for (int i = 0; i < 10; i++) {
+		bgProcesses[i] = 0;
+	}
 
 	while (1) {
 
 		char buff[1000];
 
-		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getcwd(buff, 1000)); //This is the prompt
+		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getenv("PWD")); //This is the prompt
 
 		/* input contains the whole command
 		 * tokens contains substrings from input split by spaces
@@ -91,6 +126,7 @@ int main()
 		int builtIn[3];
 		int error = 0;
 		int pipe = 0;
+		int noWait = 0;
 		tokenlist* tokens = get_tokens(input);
 
 		int argNum = 0;
@@ -114,6 +150,10 @@ int main()
 				}
 				else if (strcmp(token, "cd") == 0) {
 					cmdPath = "cd";
+					builtIn[argNum] = 1;
+				}
+				else if (strcmp(token, "jobs") == 0) {
+					cmdPath = "jobs";
 					builtIn[argNum] = 1;
 				}
 				else {
@@ -269,6 +309,10 @@ int main()
 				argNum++;
 				isCMD = 1;
 			}
+			else if (token[0] == '&') {
+				//Set variable so later don't wait for command to finish
+				noWait = 1;
+			}
 			else {
 				switch (argNum)
 				{
@@ -309,10 +353,36 @@ int main()
 		default:
 			break;
 		}
+		pid_t pid;
 		if (error == 0) {
-			int res = executeCmd(fOutput, fInput, argv1, argv2, argv3, argNum, builtIn);
-			if (res == 0) return 0;
+			int res = executeCmd(fOutput, fInput, argv1, argv2, argv3, argNum, builtIn, noWait);
+			pid = res;
+			if (res == -1) return 0;
 		}
+			//add background process to list
+			if (noWait == 1) {
+				for (int i = 0; i < 10; i++) {
+					if (bgProcesses[i] == 0) {
+						bgProcesses[i] = pid;
+						printf("[%d]\t%d\n", i + 1, pid);
+						break;
+					}
+				}
+			}
+
+
+				for (int i = 0; i < 10; i++) {
+					if (bgProcesses[i] != 0) {
+						pid_t bgStatus = waitpid(bgProcesses[i], NULL, WNOHANG);
+						if (bgStatus != 0) {
+							printf("[%d]+\t%d\n", i + 1, bgProcesses[i]);
+							bgProcesses[i] = 0;
+						}
+					}
+
+				}
+		
+
 
 		free(input);
 		free_tokens(tokens);
@@ -430,24 +500,38 @@ char* checkCommand(char* token) {
 
 }
 
-int executeCmd(char* output, char* input, char** argv1, char** argv2, char** argv3, int argSize, int builtIn[]) {
+int executeCmd(char* output, char* input, char** argv1, char** argv2, char** argv3, int argSize, int builtIn[], int noWait) {
 
 	int status;
 	int i;
-
+	if (builtIn[0] == 1) {
+		for (int i = 0; i < builin_size; i++) {
+			if (strcmp(argv1[0], builtin_str[i]) == 0) {
+				int res = (*builtin_func[i])(argv1);
+				if (res == 0)
+					return -1;
+			}
+		}
+		return 1; // DO NOT SUPPORT REDIRECTS FOR BUILT INS
+	}
 
 	// make 2 pipes (argv1 to argv2 and argv2 to argv3); each has 2 fds
 	int pipes[4];
 	pipe(pipes); //1st pipe
 	pipe(pipes + 2); //2nd pipe
 
+	pid_t pid1;
+	pid_t pid2;
+	pid_t pid3;
+
 	// fork the first child (to execute argv1)
-	if (fork() == 0)
+	pid1 = fork();
+	if (pid1 == 0)
 	{
 
 		if (strcmp(output, "") != 0) {
 			//Redirects Childs proccess standard output to file
-			int output_fd = open(output, O_WRONLY | O_CREAT | O_TRUNC);
+			int output_fd = open(output, O_RDWR | O_CREAT | O_TRUNC, 0644);
 			dup2(output_fd, STDOUT_FILENO);
 			dup2(output_fd, STDERR_FILENO);
 			close(output_fd);
@@ -469,24 +553,16 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 		close(pipes[2]);
 		close(pipes[3]);
 
-		if (builtIn[0] == 1) {
-			for (int i = 0; i < builin_size; i++) {
-				if (strcmp(argv1[0], builtin_str[i]) == 0) {
-					int res = (*builtin_func[i])(argv1);
-					if (res == 0)
-						return 0;
-				}
-			}
-		}
-		else {
-			execv(argv1[0], argv1);
-		}
+		execv(argv1[0], argv1);
+
 		exit(0);
 	}
 	else if (argSize > 0)
 	{
 		// fork second child (to execute argv2)
-		if (fork() == 0)
+
+		pid2 = fork();
+		if (pid2 == 0)
 		{
 			//direct argv2 read to 1st pipe
 
@@ -500,26 +576,16 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 			close(pipes[1]);
 			close(pipes[2]);
 			close(pipes[3]);
-
-			if (builtIn[1] == 1) {
-				for (int i = 0; i < builin_size; i++) {
-					if (strcmp(argv2[0], builtin_str[i]) == 0) {
-						int res = (*builtin_func[i])(argv2);
-						if (res == 0)
-							return 0;
-					}
-				}
-			}
-			else {
-				execv(argv2[0], argv2);
-			}
+			execv(argv2[0], argv2);
 			exit(0);
+
 		}
 		else if (argSize > 1)
 		{
-			// fork third child 
 
-			if (fork() == 0)
+			// fork third child
+			pid3 = fork();
+			if (pid3 == 0)
 			{
 				// replace arv3 stdin with input of 2nd Pipe
 				if (argv3[0] != NULL) dup2(pipes[2], 0);
@@ -530,22 +596,14 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 				close(pipes[2]);
 				close(pipes[3]);
 
-				if (builtIn[2] == 1) {
-					for (int i = 0; i < builin_size; i++) {
-						if (strcmp(argv3[0], builtin_str[i]) == 0) {
-							int res = (*builtin_func[i])(argv3);
-							if (res == 0)
-								return 0;
-						}
-					}
-				}
-				else {
-					execv(argv3[0], argv3);
-				}
-
+				execv(argv3[0], argv3);
 				exit(0);
+
 			}
+
+
 		}
+
 	}
 
 
@@ -555,10 +613,22 @@ int executeCmd(char* output, char* input, char** argv1, char** argv2, char** arg
 	close(pipes[3]);
 
 	// Wait for all pipe ends
-	for (i = 0; i < argSize + 1; i++) {
-		wait(&status);
+
+	if (noWait == 0) {
+		for (i = 0; i < argSize + 1; i++) {
+			waitpid(pid1,NULL, 0);
+		}
 	}
+	++CMDS_EXECUTED;
+
+	if (noWait == 1 && argSize == 0) return pid1;
+
+	else if (noWait == 1 && argSize == 1) return pid2;
+
+	else if (noWait == 1 && argSize == 2) return pid3;
+
+	else return 1;
 
 
-	return 1;
+
 }
