@@ -45,6 +45,8 @@
 
 * implemented background processing
 * implemented 'jobs'
+* testing
+* debugging
 
 ## Extra Credit (task - implemented by)
 
