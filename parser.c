@@ -26,25 +26,23 @@ void cd(tokenlist *tokens);
 void jobs(void);
 void exitPrgm(void);
 
-//static int NUM_OF_BUILT_INS = 3;
-//static char** BUILT_INS = {"echo", "cd", "jobs"}; //list of built-in functions besides "exit"
-
-static int CMDS_EXECUTED = 0;
-
 static void (*fp) (tokenlist*);
 
-static char* F_OUT;	//variables to store name of files for i/o redirection
+/* variables to store name of files for i/o redirection */
+static char* F_OUT;
 static char* F_IN;
+
+static int CMDS_EXECUTED = 0;
 static int PIPE_COUNT;
 
-int main()
-{
+int main() {
+
 	while (1) {
 		F_OUT = NULL;
 		F_IN = NULL;
 		PIPE_COUNT = 0;
 
-		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getenv("PWD")); //This is the prompt
+		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getenv("PWD"));
 
 		/* input contains the whole command
 		 * tokens contains substrings from input split by spaces
@@ -53,7 +51,7 @@ int main()
 		char *input = get_input();
 		tokenlist *tokens = get_tokens(input, " ");
 
-		// checks to see if cmd is a built-in cmd
+		/* checks to see if cmd is a built-in cmd */
 		char *cmd = tokens->items[0];
 		char* cmdPath;
 		if (strcmp(cmd, "exit") == 0)
@@ -67,28 +65,28 @@ int main()
 			fp = echo;
 		else {
 			fp = cmdExecute;
-			//checks if cmd is a valid cmd
+			/* checks if cmd is a valid cmd */
 			cmdPath = cmdSearch(cmd);
 			if (cmdPath == NULL) continue;
 			tokens->items[0] = cmdPath;
 		}
-		//command parsing - expanding varaibles
+		/* command parsing - expanding varaibles */
 		for (int i = 1; i < tokens->size; i++) {
 			char* token = tokens->items[i];
 
-			//This Check is To see if token is environment variable
+			/* This Check is To see if token is environment variable */
 			if (token[0] == '$') {
-				memmove(token, token + 1, strlen(token)); //Moves pointer forward trimming off $
-				char* envVar = getenv(token);  //Used to check if token is an existing environment variable
+				memmove(token, token + 1, strlen(token)); /* Moves pointer forward trimming off $ */
+				char* envVar = getenv(token);  /* Used to check if token is an existing environment variable */
 				if (envVar != NULL) {
-					tokens->items[i] = (char*)realloc(tokens->items[i], strlen(envVar) + 1); //Allocate New Space for token
+					tokens->items[i] = (char*)realloc(tokens->items[i], strlen(envVar) + 1); /* Allocate New Space for token */
 				} else {
                     tokens->items[i] = (char*)realloc(tokens->items[i], 1);
-					envVar = "\0";  //token was not an existing environment variable
+					envVar = "\0";  /* token was not an existing environment variable */
 				}
-				strcpy(tokens->items[i], envVar); //Assign token to enveronment variable
+				strcpy(tokens->items[i], envVar); /* Assign token to enveronment variable */
 			} else if (token[0] == '~') {
-				//Replaces ~ with home environment path
+				/* Replaces ~ with home environment path */
 				memmove(token, token + 1, strlen(token));
 				char* cpy = calloc(strlen(token) + 1, sizeof(char));
 				strcpy(cpy, token);
@@ -109,7 +107,7 @@ int main()
 			} else if (token[0] == '|') {
 				++PIPE_COUNT;
 				if (++i < tokens->size) {
-					cmdPath = cmdSearch(tokens->items[i]);
+					cmdPath = cmdSearch(tokens->items[i]);		/* checks validity of piped cmd */
 					if (cmdPath == NULL) break;
 					tokens->items[i] = realloc(tokens->items[i], strlen(cmdPath) + 1);
 					strcpy(tokens->items[i], cmdPath);
@@ -117,7 +115,8 @@ int main()
 			}
 		}
 		if (cmdPath == NULL && PIPE_COUNT > 0) continue;
-		//executing command
+		
+		/* executing command */
 		fp(tokens);
 
         free(input);
@@ -204,15 +203,15 @@ void free_tokens(tokenlist *tokens)
 char* cmdSearch (char *cmd) {
     char* path = (char*)malloc(strlen(getenv("PATH")));
     strcpy(path, getenv("PATH"));
-	tokenlist *pathTokens = get_tokens(path, ":");
+	tokenlist *pathTokens = get_tokens(path, ":");	/* retrieving PATH and separating paths into tokens */
 	char *cmdToAppend = (char*)malloc(strlen(cmd) + 1);
 	strcpy(cmdToAppend, "/");
-	strcat(cmdToAppend, cmd);
+	strcat(cmdToAppend, cmd);	/* adding '/' before cmd */
 	for (int i = 0; i < pathTokens->size; i++) {
 		char *token = pathTokens->items[i];
 		token = (char*)realloc(token, strlen(cmdToAppend) + strlen(token) + 1);
-		strcat(token, cmdToAppend);
-		if (access(token, F_OK) == 0) return token;
+		strcat(token, cmdToAppend);		/* concat one of the paths to '/[cmd]' */
+		if (access(token, F_OK) == 0) return token;		/* checks if cmd exists in file path */
 	}
 	printf("%s: command not found\n", cmd);
     free_tokens(pathTokens);
@@ -221,18 +220,9 @@ char* cmdSearch (char *cmd) {
 	return NULL;
 }
 
-void printList(tokenlist *tokens) {
-	for (int i = 0; i < tokens->size; i++) {
-		fprintf(stderr, "token %i: %s\n", i, tokens->items[i]);
-	}
-	if (tokens->items[tokens->size] == NULL) {
-		fprintf(stderr, "end of tokenlist = NULL\n");
-	}
-}
-
 void cmdExecute(tokenlist *tokens) {
 	if (PIPE_COUNT > 0) {
-		//puts commands separated by pipes into separate tokenlists
+		/* puts commands separated by pipes into separate tokenlists */
 		tokenlist **tokLists = calloc(PIPE_COUNT + 2, sizeof(tokenlist*));
 		int j = 0;
 		for (int i = 0; i < PIPE_COUNT + 1; i++) {
@@ -246,6 +236,7 @@ void cmdExecute(tokenlist *tokens) {
 					add_token(tokLists[i], tokens->items[j]);
 				}
 			}
+			/* NULLs end of tokenlist */
 			tokLists[i]->items = (char**)realloc(tokLists[i]->items, (tokLists[i]->size + 1)*sizeof(char*));
 			tokLists[i]->items[tokLists[i]->size] = NULL;
 		}
@@ -254,14 +245,13 @@ void cmdExecute(tokenlist *tokens) {
 		int fd_in = 0;
 		pid_t pid;
 		int numOfCmds = PIPE_COUNT + 1;
-		for (int i = 0; i < numOfCmds; i++) {
+		for (int i = 0; i < numOfCmds; i++) { /* execute list of commands, redirect input/output as needed */
 			pipe(p_fds);
 			if ((pid = fork()) == 0) {
 				dup2(fd_in, STDIN_FILENO);
 				close(p_fds[0]);
 				if (i + 1 < numOfCmds)
 					dup2(p_fds[1], STDOUT_FILENO);
-				//close(p_fds[1]);
 				execv(tokLists[i]->items[0], tokLists[i]->items);
 				perror("execv");
 				exit(1);
@@ -274,11 +264,11 @@ void cmdExecute(tokenlist *tokens) {
 				fd_in = p_fds[0];
 			}
 		}
-		//close pipes
+		/* close pipes */
 		close(p_fds[0]);
 		close(p_fds[1]);
 		
-		//free tokLists
+		/* free tokLists */
 		for (int i = 0; i < PIPE_COUNT + 1; i++) {
 			free_tokens(tokLists[i]);
 		}
@@ -286,7 +276,7 @@ void cmdExecute(tokenlist *tokens) {
 
 	} else {
 		int fdIn = -1, fdOut = -1;
-		// opens i/o files
+		/* open i/o files */
 		if (F_IN != NULL) {
 			fdIn = open(F_IN, O_RDONLY);
 			if (fdIn == -1) {
@@ -307,7 +297,7 @@ void cmdExecute(tokenlist *tokens) {
 			printf("Unable to fork.\n");
 			exit(EXIT_FAILURE);
 		} else if (pid1 == 0) {
-			//child process
+			/* child process */
 			if (fdIn != -1) {
 				close(stdin);
 				dup2(fdIn, STDIN_FILENO);
@@ -319,7 +309,7 @@ void cmdExecute(tokenlist *tokens) {
 			execv(tokens->items[0], tokens->items);
 			exit(0);
 		} else {
-			//parent process
+			/* parent process */
 			if (fdIn != -1)
 				close(fdIn);
 			if (fdOut != -1)
@@ -327,7 +317,6 @@ void cmdExecute(tokenlist *tokens) {
 			waitpid(pid1, NULL, 0);
 		}
 	}
-
 	++CMDS_EXECUTED;
 }
 
@@ -338,14 +327,14 @@ void echo(tokenlist *tokens) {
 			printf(" %s", tokens->items[i]);
 		}
 		printf("\n");
-		++CMDS_EXECUTED;
 	}
+	++CMDS_EXECUTED;
 }
 
 void cd(tokenlist *tokens) {
 	if (tokens->size == 1) {
 		chdir(getenv("HOME"));
-		setenv("PWD", getcwd(NULL, 0), 1);
+		setenv("PWD", getcwd(NULL, 0), 1); /* sets $PWD to current working directory */
 		++CMDS_EXECUTED;
 	} else if (tokens->size == 2) {
 		int res = chdir(tokens->items[1]);
@@ -361,6 +350,7 @@ void cd(tokenlist *tokens) {
 }
 
 void jobs(void) {
+
 	++CMDS_EXECUTED;
 }
 
