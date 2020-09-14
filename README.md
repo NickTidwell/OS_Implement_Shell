@@ -40,7 +40,8 @@
 
 ### Michael Styron
 
-* 
+* implemented background processing
+* implemented 'jobs'
 
 ## Extra Credit (task - completed by)
 

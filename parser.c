@@ -21,7 +21,6 @@ void free_tokens(tokenlist *tokens);
 char* cmdSearch(char *cmd);
 void cmdExecute(tokenlist *tokens);
 
-int isBuiltIn(char* cmd);
 void echo(tokenlist *tokens);
 void cd(tokenlist *tokens);
 void jobs(void);
@@ -36,12 +35,14 @@ static void (*fp) (tokenlist*);
 
 static char* F_OUT;	//variables to store name of files for i/o redirection
 static char* F_IN;
+static int PIPE_COUNT;
 
 int main()
 {
 	while (1) {
 		F_OUT = NULL;
 		F_IN = NULL;
+		PIPE_COUNT = 0;
 
 		printf("%s@%s : %s > ", getenv("USER"), getenv("MACHINE"), getenv("PWD")); //This is the prompt
 
@@ -50,11 +51,11 @@ int main()
 		 */
 
 		char *input = get_input();
-//printf("whole input: %s\n", input);
 		tokenlist *tokens = get_tokens(input, " ");
 
 		// checks to see if cmd is a built-in cmd
 		char *cmd = tokens->items[0];
+		char* cmdPath;
 		if (strcmp(cmd, "exit") == 0)
             exitPrgm();
 		else if (strcmp(cmd, "jobs") == 0) {
@@ -67,7 +68,7 @@ int main()
 		else {
 			fp = cmdExecute;
 			//checks if cmd is a valid cmd
-			char* cmdPath = cmdSearch(cmd);
+			cmdPath = cmdSearch(cmd);
 			if (cmdPath == NULL) continue;
 			tokens->items[0] = cmdPath;
 		}
@@ -99,14 +100,23 @@ int main()
 					F_IN = calloc(strlen(tokens->items[i]) + 1, sizeof(char));
 					strcpy(F_IN, tokens->items[i]);
 				}
-			} else if (token [0] == '>') {
+			} else if (token[0] == '>') {
 				tokens->items[i] = 0;
 				if (++i < tokens->size) {
 					F_OUT = calloc(strlen(tokens->items[i]) + 1, sizeof(char));
 					strcpy(F_OUT, tokens->items[i]);
 				}
+			} else if (token[0] == '|') {
+				++PIPE_COUNT;
+				if (++i < tokens->size) {
+					cmdPath = cmdSearch(tokens->items[i]);
+					if (cmdPath == NULL) break;
+					tokens->items[i] = realloc(tokens->items[i], strlen(cmdPath) + 1);
+					strcpy(tokens->items[i], cmdPath);
+				}
 			}
 		}
+		if (cmdPath == NULL && PIPE_COUNT > 0) continue;
 		//executing command
 		fp(tokens);
 
@@ -211,49 +221,113 @@ char* cmdSearch (char *cmd) {
 	return NULL;
 }
 
+void printList(tokenlist *tokens) {
+	for (int i = 0; i < tokens->size; i++) {
+		fprintf(stderr, "token %i: %s\n", i, tokens->items[i]);
+	}
+	if (tokens->items[tokens->size] == NULL) {
+		fprintf(stderr, "end of tokenlist = NULL\n");
+	}
+}
+
 void cmdExecute(tokenlist *tokens) {
-	int fdIn = -1, fdOut = -1;
-	
-	if (F_IN != NULL) {
-		fdIn = open(F_IN, O_RDONLY);
-		if (fdIn == -1) {
-			printf("%s: No such file or directory\n", F_IN);
-			return;
+	if (PIPE_COUNT > 0) {
+		//puts commands separated by pipes into separate tokenlists
+		tokenlist **tokLists = calloc(PIPE_COUNT + 2, sizeof(tokenlist*));
+		int j = 0;
+		for (int i = 0; i < PIPE_COUNT + 1; i++) {
+			tokLists[i] = new_tokenlist();
+			for ( ; j < tokens->size; j++) {
+				char* token = tokens->items[j];
+				if (token[0] == '|') {
+					++j;
+					break;
+				} else {
+					add_token(tokLists[i], tokens->items[j]);
+				}
+			}
+			tokLists[i]->items = (char**)realloc(tokLists[i]->items, (tokLists[i]->size + 1)*sizeof(char*));
+			tokLists[i]->items[tokLists[i]->size] = NULL;
 		}
-	}
+		
+		int p_fds[2];
+		int fd_in = 0;
+		pid_t pid;
+		int numOfCmds = PIPE_COUNT + 1;
+		for (int i = 0; i < numOfCmds; i++) {
+			pipe(p_fds);
+			if ((pid = fork()) == 0) {
+				dup2(fd_in, STDIN_FILENO);
+				close(p_fds[0]);
+				if (i + 1 < numOfCmds)
+					dup2(p_fds[1], STDOUT_FILENO);
+				//close(p_fds[1]);
+				execv(tokLists[i]->items[0], tokLists[i]->items);
+				perror("execv");
+				exit(1);
+			} else if (pid < 0) {
+				perror("fork");
+				exit(1);
+			} else {
+				wait(NULL);
+				close(p_fds[1]);
+				fd_in = p_fds[0];
+			}
+		}
+		//close pipes
+		close(p_fds[0]);
+		close(p_fds[1]);
+		
+		//free tokLists
+		for (int i = 0; i < PIPE_COUNT + 1; i++) {
+			free_tokens(tokLists[i]);
+		}
+		free(tokLists);
 
-	if (F_OUT != NULL) {
-		fdOut = open(F_OUT, O_RDWR | O_CREAT, 0644);
-		if (fdOut == -1) {
-			printf("%s: Error opening file\n", F_OUT);
-			return;
-		}
-	}
-
-	pid_t child_pid = fork();
-    if (child_pid == -1) {
-        printf("Unable to fork.\n");
-        exit(EXIT_FAILURE);
-    } else if (child_pid == 0) {
-		//child process
-		if (fdIn != -1) {
-			close(stdin);
-			dup2(fdIn, STDIN_FILENO);
-		}
-		if (fdOut != -1) {
-			close(stdout);
-			dup2(fdOut, STDOUT_FILENO);
-		}
-		execv(tokens->items[0], tokens->items);
-        exit(0);
 	} else {
-		//parent process
-		if (fdIn != -1)
-			close(fdIn);
-		if (fdOut != -1)
-			close(fdOut);
-        waitpid(child_pid, NULL, 0);
-    }
+		int fdIn = -1, fdOut = -1;
+		// opens i/o files
+		if (F_IN != NULL) {
+			fdIn = open(F_IN, O_RDONLY);
+			if (fdIn == -1) {
+				printf("%s: No such file or directory\n", F_IN);
+				return;
+			}
+		}
+		if (F_OUT != NULL) {
+			fdOut = open(F_OUT, O_RDWR | O_CREAT, 0644);
+			if (fdOut == -1) {
+				printf("%s: Error opening file\n", F_OUT);
+				return;
+			}
+		}
+
+		int pid1 = fork();
+		if (pid1 == -1) {
+			printf("Unable to fork.\n");
+			exit(EXIT_FAILURE);
+		} else if (pid1 == 0) {
+			//child process
+			if (fdIn != -1) {
+				close(stdin);
+				dup2(fdIn, STDIN_FILENO);
+			}
+			if (fdOut != -1) {
+				close(stdout);
+				dup2(fdOut, STDOUT_FILENO);
+			}
+			execv(tokens->items[0], tokens->items);
+			exit(0);
+		} else {
+			//parent process
+			if (fdIn != -1)
+				close(fdIn);
+			if (fdOut != -1)
+				close(fdOut);
+			waitpid(pid1, NULL, 0);
+		}
+	}
+
 	++CMDS_EXECUTED;
 }
 
