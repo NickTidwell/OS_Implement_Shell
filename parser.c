@@ -267,8 +267,6 @@ char* cmdSearch (char *cmd) {
 			strcat(token, cmdToAppend);		/* concat one of the paths to '/[cmd]' */
 			if (access(token, F_OK) == 0) return token;		/* checks if cmd exists in file path */
 		}
-		//free(cmdToAppend);
-    	//free(path);	
 	}
 	printf("%s: command not found\n", cmd);
 	return NULL;
