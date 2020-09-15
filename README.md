@@ -2,10 +2,26 @@
 
 [Link to GitHub](https://github.com/NickTidwell/OS_Implement_Shell.git)
 
+## Contents of Tar File:
+
+* makefile
+* parser.c
+* README.md
+
+## How to compile executable:
+
+### Input these commands in your terminal in the directory where the extracted tar file contents are:
+
+    make
+
+### This should produce a "shell" executable that you can run by typing:
+
+    ./shell
+
+
 ## Project Statement
 
-    Design and implement a basic shell interface that supports input/output redirection, piping,
-    background processing, and a series of built in functions (echo, cd, exit, jobs).
+### Design and implement a basic shell interface that supports input/output redirection, piping background processing, and a series of built in functions (echo, cd, exit, jobs).
 
 ## Assumptions Made
 
