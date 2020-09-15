@@ -141,9 +141,15 @@ int main() {
 				++NO_WAIT;
 				for (int i = 0; i < 10; i++) {
 					if (bgProcesses[i] == 0) {
-						tokenlist * tempTokens = get_tokens(tokens->items[0],"/");
-						bgCommands[i] = calloc(strlen(tempTokens->items[1]) + 1, sizeof(char));
-						strcpy(bgCommands[i], tempTokens->items[1]);
+						printf("%s\n", tokens->items[0]);
+						if (strcmp(tokens->items[0], "cd") == 0 || strcmp(tokens->items[0], "echo") == 0) {
+							bgCommands[i] = calloc(strlen(tokens->items[0]) + 1, sizeof(char));
+							strcpy(bgCommands[i], tokens->items[0]);
+						} else {
+							tokenlist * tempTokens = get_tokens(tokens->items[0],"/");
+							bgCommands[i] = calloc(strlen(tempTokens->items[1]) + 1, sizeof(char));
+							strcpy(bgCommands[i], tempTokens->items[1]);
+						}
 						for (int j = 1; j < tokens->size; j++) {
 							bgCommands[i] = (char*)realloc(bgCommands[i], (strlen(bgCommands[i]) + strlen(tokens->items[j]) + 2));
 							strcat(bgCommands[i], " ");
